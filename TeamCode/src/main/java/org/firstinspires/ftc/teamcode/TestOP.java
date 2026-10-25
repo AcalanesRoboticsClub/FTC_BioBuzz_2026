@@ -44,10 +44,13 @@ import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+//import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+
 
 import java.util.List;
 
@@ -62,11 +65,11 @@ public class TestOP extends LinearOpMode{
     DcMotor frontRightMotor; // 1 (expansion)
     DcMotor backRightMotor; // 0 (expansion)
     CRServo testServo; // 0
-    DcMotor leftFlywheel; // 1
-    DcMotor rightFlywheel; // 0
-    DcMotor adjustFlywheel; // 2
+//    DcMotor leftFlywheel; // 1
+//    DcMotor rightFlywheel; // 0
+    DcMotorEx adjustFlywheel; // 2
     IMU imu;
-    double angle;
+    double power;
 
     private double calcLargestChange(double a, double b) {
         // Return the value of the greatest absolute value of either a or b. Used for dual controller input
@@ -83,13 +86,14 @@ public class TestOP extends LinearOpMode{
 
     @Override
     public void runOpMode() throws InterruptedException {
+//        TelemetryPacket packet = new TelemetryPacket();
+
         // Hardware Definitions. Must match names setup in robot configuration in the driver hub. config is created and selected selected with driver hub menu
         // Drive Motors
 //        frontLeftMotor = hardwareMap.dcMotor.get("frontLeftMotor");
 //        backLeftMotor = hardwareMap.dcMotor.get("backLeftMotor");
 //        frontRightMotor = hardwareMap.dcMotor.get("frontRightMotor");
 //        backRightMotor = hardwareMap.dcMotor.get("backRightMotor");
-
 //        testServo = hardwareMap.get(CRServo.class, "testServo");
 //        beltLeft.setDirection(CRServo.Direction.REVERSE);
 
@@ -99,10 +103,10 @@ public class TestOP extends LinearOpMode{
 //        flywheelRotateMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 //        flywheelRotateMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        leftFlywheel = hardwareMap.dcMotor.get("leftFly");
-        rightFlywheel = hardwareMap.dcMotor.get("rightFly");
-        rightFlywheel.setDirection(DcMotorSimple.Direction.REVERSE);
-        adjustFlywheel = hardwareMap.dcMotor.get("adjusFly");
+//        leftFlywheel = hardwareMap.dcMotor.get("leftFly");
+//        rightFlywheel = hardwareMap.dcMotor.get("rightFly");
+//        rightFlywheel.setDirection(DcMotorSimple.Direction.REVERSE);
+        adjustFlywheel = hardwareMap.get(DcMotorEx.class, "adjusFly");
 //        testMotor = hardwareMap.dcMotor.get("testMotor");
 
         // Reverse some of the drive motors depending on physical setup
@@ -119,6 +123,8 @@ public class TestOP extends LinearOpMode{
         imu.initialize(parameters);
 
         waitForStart();
+
+        power = 0.5;
 
         if (isStopRequested()) return;
 
@@ -168,32 +174,40 @@ public class TestOP extends LinearOpMode{
 //            frontRightMotor.setPower(frontRightPower);
 //            backRightMotor.setPower(backRightPower);
 
-            telemetry.addData("vals", "%4.2f, %4.2f, %4.2f", y, x, rx);
-            telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
-            telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
+//            telemetry.addData("vals", "%4.2f, %4.2f, %4.2f", y, x, rx);
+//            telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
+//            telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
 
 
             // Testing
-            if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
-                rightFlywheel.setPower(1);
-                leftFlywheel.setPower(1);
-            }
+//            if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
+//                rightFlywheel.setPower(1);
+//                leftFlywheel.setPower(1);
+//            }
 
-            if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
-                rightFlywheel.setPower(-1);
-                leftFlywheel.setPower(-1);
-                adjustFlywheel.setPower(-1);
+            if (gamepad1.b) {
+//                rightFlywheel.setPower(-1);
+//                leftFlywheel.setPower(-1);
+                adjustFlywheel.setPower(-power);
             }
-
-            if (gamepad1.xWasPressed() || gamepad2.xWasPressed()) {
-                rightFlywheel.setPower(0);
-                leftFlywheel.setPower(0);
+            else if (gamepad1.x) {
+//                rightFlywheel.setPower(1);
+//                leftFlywheel.setPower(1);
+                adjustFlywheel.setPower(power);
+            }
+            else {
                 adjustFlywheel.setPower(0);
             }
 
-            if (gamepad1.yWasPressed()) {
-                adjustFlywheel.setPower(1);
+            if (gamepad1.dpadUpWasPressed()) {
+                power += 0.1;
             }
+            else if (gamepad1.dpadDownWasPressed()) {
+                power -= 0.1;
+            }
+
+            telemetry.addData("Motor current (A)", adjustFlywheel.getCurrent(CurrentUnit.AMPS));
+
 
 
 //            if (gamepad1.xWasPressed() || gamepad2.xWasPressed()) {
