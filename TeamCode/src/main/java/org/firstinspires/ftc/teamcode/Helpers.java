@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-public class Constants {
+public class Helpers {
     /*
     * PORTS
     * Motor:
@@ -10,4 +10,5 @@ public class Constants {
     *   3
     *   4
     * */
+
 }
