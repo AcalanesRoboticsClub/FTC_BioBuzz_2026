@@ -22,21 +22,26 @@ import org.firstinspires.ftc.teamcode.Shooter.Launcher;
 public class Elevator {
     DcMotorEx elevatorMotor;
     TouchSensor elevatorSwitch;
-    double MAX_DIST = 12; // inches
+    final double MAX_POWER = 0.5;
+    static boolean SLEW_PID = true;
+    static double SLEW_RATE = 0.15;
+    double MAX_DIST = 13; // inches
     double DIST_TOLERANCE = 1;
     final double NUM_TEETH = 10;
     final double TICKS_PER_REV = 357.7;
     final double GEAR_DIAMETER = 1.158;
     enum STATE {INTAKE, SHOOT, MANUAL, STOP, HOLD_POS};
-    STATE elevatorState = STATE.INTAKE;
+    STATE elevatorState = STATE.HOLD_POS;
     double integral = 0.0;
     double lastError;
+    double holdPos = 0.0;
+    double lastPIDOutput = 0.0;
     @Config
     public static class ELEVATOR_PID_COEFFS {
-        public static double kP = 1;
+        public static double kP = 0.3;
         public static double kI = 0;
         public static double kD = 0;
-        public static double kF = 0;
+        public static double kG = 0.06;
     }
 
     private double ticksToDist(double ticks) {
@@ -51,6 +56,11 @@ public class Elevator {
         elevatorMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         elevatorMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 //        elevatorMotor.setDirection(DcMotor.Direction.REVERSE);
+    }
+
+    private void setHoldState() {
+        elevatorState = STATE.HOLD_POS;
+        holdPos = ticksToDist(elevatorMotor.getCurrentPosition());
     }
 
     public boolean hitBottom() {
@@ -70,25 +80,31 @@ public class Elevator {
         double pidOutput = 0.0;
         double error = 0.0;
 
+        if (hitBottom()) {
+            elevatorMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            elevatorMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        }
+        if ((ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_DIST) && elevatorState == STATE.SHOOT) {
+            setHoldState();
+        }
+
         if (elevatorState == STATE.STOP) {
             elevatorMotor.setPower(0);
         }
-        else if (elevatorState == STATE.HOLD_POS) {
-            elevatorMotor.setPower(ELEVATOR_PID_COEFFS.kF);
-        }
         else if (elevatorState != STATE.MANUAL) {
-            if (hitBottom() && elevatorState == STATE.INTAKE) {
-                elevatorState = STATE.STOP;
-                elevatorMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-                elevatorMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-            }
+//            if (hitBottom() && elevatorState == STATE.INTAKE) {
+//                elevatorState = STATE.HOLD_POS;
+//                holdPos = elevatorMotor.getCurrentPosition();
+//                elevatorMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+//                elevatorMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+//            }
 
             if (elevatorState == STATE.INTAKE) {
                 error = 0 - currentPos;
             } else if (elevatorState == STATE.SHOOT) {
                 error = MAX_DIST - currentPos;
             } else {
-                error = 0;
+                error = holdPos - currentPos;
             }
 
             integral += error * elapsedTime;
@@ -99,27 +115,23 @@ public class Elevator {
                     ELEVATOR_PID_COEFFS.kI * integral +
                     ELEVATOR_PID_COEFFS.kD * derivative;
 
-            // Static friction (overcomes initial friction to move)
-            double kS = 0.05;
+            pidOutput += ELEVATOR_PID_COEFFS.kG;
 
-            // Velocity & Acceleration Feedforward terms
-            double kV = 0.001;
-            double kA = 0.0001;
+            if (SLEW_PID) {
+                pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
+            }
+            lastPIDOutput = pidOutput;
 
-            // Gravity compensation term
-            double kG = 0.1;
+            pidOutput = Math.max(-1,
+                    Math.min(1, pidOutput));
 
-            //        double f = (Math.signum(targetVelocity) * kS)
-            //                + (kV * targetVelocity)
-            //                + (kA * targetAccel)
-            //                + kG;
-            //
-            pidOutput += ELEVATOR_PID_COEFFS.kF;
+            elevatorMotor.setPower(pidOutput);
 
-//            elevatorMotor.setPower(pidOutput);
-
-            if (error < DIST_TOLERANCE && elevatorState == STATE.SHOOT) {
-                elevatorState = STATE.HOLD_POS;
+            if (Math.abs(error) < DIST_TOLERANCE && elevatorState == STATE.SHOOT) {
+                setHoldState();
+            }
+            if (Math.abs(error) < DIST_TOLERANCE && elevatorState == STATE.INTAKE) {
+                elevatorState = STATE.STOP; // don't hold position, just stop motor
             }
         }
 
@@ -131,12 +143,15 @@ public class Elevator {
         packet.put("Error", error);
         packet.put("PID Output", pidOutput);
 
+        packet.put("Slew PID On", SLEW_PID);
+        packet.put("Slew rate", SLEW_RATE);
+
         packet.put("kP", ELEVATOR_PID_COEFFS.kP);
         packet.put("kI", ELEVATOR_PID_COEFFS.kI);
         packet.put("kD", ELEVATOR_PID_COEFFS.kD);
-        packet.put("kF", ELEVATOR_PID_COEFFS.kF);
+        packet.put("kF", ELEVATOR_PID_COEFFS.kG);
 
-        FtcDashboard.getInstance().sendTelemetryPacket(packet);
+//        FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
 
     public void goToPos() {
@@ -145,16 +160,18 @@ public class Elevator {
 
     public void runForward(double value) {
         elevatorState = STATE.MANUAL;
-        elevatorMotor.setPower(value);
+        elevatorMotor.setPower(Math.clamp(value, 0, MAX_POWER));
     }
 
     public void runBackward(double value) {
         elevatorState = STATE.MANUAL;
-        elevatorMotor.setPower(-value);
+        elevatorMotor.setPower(-Math.clamp(value, 0, MAX_POWER));
     }
 
     public void rest() {
-        elevatorState = STATE.STOP;
+        if (elevatorState == STATE.MANUAL) {
+            setHoldState();
+        }
     }
 
 }

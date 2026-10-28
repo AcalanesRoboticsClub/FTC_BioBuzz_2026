@@ -27,12 +27,16 @@ import com.bylazar.ftcontrol.panels.integration.TelemetryManager;
 @Config
 public class Launcher {
     DcMotorEx launchMotor;
+    static boolean SLEW_PID = true;
+    static double SLEW_RATE = 0.15;
     final double REST_ANGLE = 270.0;
-    final double SHOOT_POS_ANGLE = 25.0;
-    final double SHOOT_ANGLE = 360 * 1.5;
+    final double SHOOT_POS_ANGLE = 55.0;
+    final double SHOOT_ANGLE = 360 * 2.5;
     final double GEAR_RATIO = 10.0 / 24.0;
     final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
-    double ANGLE_TOLERANCE = 2;
+    double ANGLE_TOLERANCE_TO_SHOOT = 10;
+    double ANGLE_TOLERANCE_TO_REST = 20;
+    double shoot_power = 1;
 
     boolean shootToggle = false;
     enum STATE {REST, POSITION, SHOOT};
@@ -40,19 +44,20 @@ public class Launcher {
     double targetAngle = 0;
     enum typeShoot {FLOWER, SHOOT};
     typeShoot typeShootToggle = typeShoot.SHOOT;
-    final double FLOWER_POWER = 0.75;
+    final double FLOWER_POWER = 0.5;
     final double SHOOT_POWER = 1;
     TelemetryManager panelsTelemetry = Panels.getTelemetry();
 
     @Config
     public static class PID_COEFFS {
-        public static double kP = 0.0;
+        public static double kP = 0.0013;
         public static double kI = 0;
-        public static double kD = 0;
-        public static double kF = 0;
+        public static double kD = 0.0001;
+        public static double kF = 0.05;
     }
     double lastError = 0.0;
     double integral = 0.0;
+    double lastPIDOutput = 0.0;
 
     private double degreesToTicks(double degrees) {
         return (degrees * (TICKS_PER_REV * GEAR_RATIO / 360.0));
@@ -73,6 +78,7 @@ public class Launcher {
         launchMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         launchMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
+        targetAngle = REST_ANGLE;
     }
 
     public double getCurrentAngle() {
@@ -81,10 +87,6 @@ public class Launcher {
 
     public double getCurrentTicks() {
         return launchMotor.getCurrentPosition();
-    }
-
-    public STATE getCurrentState() {
-        return launch_state;
     }
 
     public double getOutput() {
@@ -98,9 +100,11 @@ public class Launcher {
     public void toggleShootType() {
         if (typeShootToggle == typeShoot.SHOOT) {
             typeShootToggle = typeShoot.FLOWER;
+            shoot_power = FLOWER_POWER;
         }
         else {
-            typeShootToggle = typeShoot.SHOOT;;
+            typeShootToggle = typeShoot.SHOOT;
+            shoot_power = SHOOT_POWER;
         }
     }
 
@@ -111,34 +115,41 @@ public class Launcher {
         if (shootToggle) {
             targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
             launch_state = STATE.POSITION;
-        }
-        else if (launch_state == STATE.SHOOT) {
-            targetAngle = currentAngle + (SHOOT_ANGLE - (currentAngle % 640));
-        }
-        else if (launch_state == STATE.REST) {
-            targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
+            shootToggle = false;
         }
 
         double error = targetAngle - currentAngle;
+        double pidOutput = 1.0;
 
-        integral += error * elapsedTime;
-        double derivative = (error - lastError) / elapsedTime;
-        lastError = error;
-
-        double pidOutput = PID_COEFFS.kP * error +
-                PID_COEFFS.kI * integral +
-                PID_COEFFS.kD * derivative;
-
-        pidOutput += PID_COEFFS.kF * Math.sin(Math.toRadians(currentAngle % 360));
-
-        launchMotor.setPower(pidOutput);
-
-        if (Math.abs(error) < ANGLE_TOLERANCE && launch_state == STATE.POSITION) {
-            launch_state = STATE.SHOOT;
-            shootToggle = false;
+        if (launch_state == STATE.SHOOT && error > 270) {
+            launchMotor.setPower(shoot_power);
         }
-        else if (Math.abs(error) < ANGLE_TOLERANCE && launch_state == STATE.SHOOT) {
+        else {
+            integral += error * elapsedTime;
+            double derivative = (error - lastError) / elapsedTime;
+            lastError = error;
+
+            pidOutput = PID_COEFFS.kP * error +
+                    PID_COEFFS.kI * integral +
+                    PID_COEFFS.kD * derivative;
+
+            pidOutput += PID_COEFFS.kF * Math.sin(Math.toRadians(currentAngle % 360));
+
+            if (SLEW_PID) {
+                pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
+            }
+            lastPIDOutput = pidOutput;
+
+            launchMotor.setPower(pidOutput);
+        }
+
+        if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == STATE.POSITION) {
+            launch_state = STATE.SHOOT;
+            targetAngle = currentAngle + (SHOOT_ANGLE - (currentAngle % 640));
+        }
+        else if (Math.abs(error) < ANGLE_TOLERANCE_TO_REST && launch_state == STATE.SHOOT) {
             launch_state = STATE.REST;
+            targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
         }
 
         TelemetryPacket packet = new TelemetryPacket();
@@ -154,7 +165,7 @@ public class Launcher {
         packet.put("kD", PID_COEFFS.kD);
         packet.put("kF", PID_COEFFS.kF);
 
-//        FtcDashboard.getInstance().sendTelemetryPacket(packet);
+        FtcDashboard.getInstance().sendTelemetryPacket(packet);
 
 //        panelsTelemetry.debug("Init was ran!");
 //        panelsTelemetry.graph("Current Angle", currentAngle);

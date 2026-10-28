@@ -138,17 +138,26 @@ public class RobotOP extends LinearOpMode {
             }
 
             if (gamepad1.dpadUpWasPressed()) {
-                shooter.hood.hoodShoot();
+//                shooter.hood.hoodShoot();
+                shooter.hood.hoodShootHigh();
+            }
+            if (gamepad1.dpadRightWasPressed()) {
+                shooter.hood.hoodShootLow();
             }
             if (gamepad1.dpadDownWasPressed()) {
+//                shooter.hood.hoodFlower();
                 shooter.hood.hoodFlower();
             }
+            shooter.hood.updateHood();
 
             if (gamepad1.right_trigger > 0.5) {
                 elevator.runForward(gamepad1.right_trigger);
             }
-            if (gamepad1.left_trigger > 0.5) {
+            else if (gamepad1.left_trigger > 0.5) {
                 elevator.runBackward(gamepad1.left_trigger);
+            }
+            else {
+                elevator.rest();
             }
 
             if (gamepad1.rightBumperWasPressed()) {
@@ -159,12 +168,12 @@ public class RobotOP extends LinearOpMode {
             }
             elevator.runElevator(dt);
 
-            if (gamepad1.dpad_right) {
-                shooter.launcher.launcherFoward();
-            }
-            if (gamepad1.dpad_left) {
-                shooter.launcher.launcherForwardSlow();
-            }
+//            if (gamepad1.dpad_right) {
+//                shooter.launcher.launcherFoward();
+//            }
+//            if (gamepad1.dpad_left) {
+//                shooter.launcher.launcherForwardSlow();
+//            }
 
             TelemetryPacket packet = new TelemetryPacket();
             packet.put("launcher angle", shooter.launcher.getCurrentAngle());
