@@ -84,7 +84,7 @@ public class Elevator {
             elevatorMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
             elevatorMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         }
-        if ((ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_DIST) && elevatorState == STATE.SHOOT) {
+        if ((ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_DIST) && (elevatorState == STATE.SHOOT)) {
             setHoldState();
         }
 
@@ -161,6 +161,10 @@ public class Elevator {
     public void runForward(double value) {
         elevatorState = STATE.MANUAL;
         elevatorMotor.setPower(Math.clamp(value, 0, MAX_POWER));
+
+        if (ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_DIST) {
+            setHoldState();
+        }
     }
 
     public void runBackward(double value) {
