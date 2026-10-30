@@ -27,6 +27,7 @@ public class RobotOP extends LinearOpMode {
     Intake intake;
     Shooter shooter;
     Elevator elevator;
+    Flower flower;
     DcMotor frontLeftMotor;
     DcMotor backLeftMotor;
     DcMotor frontRightMotor;
@@ -34,6 +35,7 @@ public class RobotOP extends LinearOpMode {
 
     IMU imu;
     ElapsedTime timer = new ElapsedTime();
+    double timeForLauncherStart = 100;
 
     private double calcLargestChange(double a, double b) {
         // Return the value of the greatest absolute value of either a or b. Used for dual controller input
@@ -53,6 +55,7 @@ public class RobotOP extends LinearOpMode {
         shooter = new Shooter(hardwareMap);
         intake = new Intake(hardwareMap);
         elevator = new Elevator(hardwareMap);
+        flower = new Flower(hardwareMap);
 
         frontLeftMotor = hardwareMap.dcMotor.get("frontLeft");
         backLeftMotor = hardwareMap.dcMotor.get("backLeft");
@@ -74,6 +77,9 @@ public class RobotOP extends LinearOpMode {
 
         waitForStart();
         timer.reset();
+
+        elevator.toggleTopPos();
+        flower.openServo();
 
         if (isStopRequested()) return;
 
@@ -120,20 +126,34 @@ public class RobotOP extends LinearOpMode {
             frontRightMotor.setPower(frontRightPower);
             backRightMotor.setPower(backRightPower);
 
-            shooter.launcher.runLauncher(dt);
-            if (gamepad1.bWasPressed()) {
+            // Delay for launcher to start to give time to flower servo
+            if (timeForLauncherStart <= 0) {
+                shooter.launcher.runLauncher(dt);
+            }
+            else {
+                timeForLauncherStart -= 2;
+            }
+
+            if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
                 shooter.launcher.toggleShoot();
             }
-            if (gamepad1.yWasPressed()) {
-                shooter.launcher.toggleShootType();
+            if (gamepad2.dpadRightWasPressed()) {
+                shooter.launcher.shiftZeroPositionForward();
+            }
+            if (gamepad2.dpadLeftWasPressed()) {
+                shooter.launcher.shiftZeroPositionBackward();
             }
 //            telemetry.addData("Launch state: ", shooter.launcher.getCurrentState());
+
+            if (gamepad2.backWasPressed()) {
+                shooter.launcher.shootState();
+            }
 
             intake.runIntake();
             if (gamepad1.aWasPressed()) {
                 intake.toggle();
             }
-            if (gamepad1.x) {
+            if (gamepad2.x) {
                 intake.spit(); // spit out balls in case stuck
             }
 
@@ -141,32 +161,44 @@ public class RobotOP extends LinearOpMode {
 //                shooter.hood.hoodShoot();
                 shooter.hood.hoodShootHigh();
             }
-            if (gamepad1.dpadRightWasPressed()) {
-                shooter.hood.hoodShootLow();
-            }
             if (gamepad1.dpadDownWasPressed()) {
 //                shooter.hood.hoodFlower();
-                shooter.hood.hoodFlower();
+                shooter.hood.hoodShootLow();
+            }
+            if (gamepad2.dpadUpWasPressed()) {
+                shooter.hood.incPosition();
+            }
+            if (gamepad2.dpadDownWasPressed()) {
+                shooter.hood.decPosition();
             }
             shooter.hood.updateHood();
 
-            if (gamepad1.right_trigger > 0.5) {
-                elevator.runForward(gamepad1.right_trigger);
+            if (gamepad2.right_trigger > 0.5) {
+                elevator.runForward(gamepad2.right_trigger);
             }
-            else if (gamepad1.left_trigger > 0.5) {
-                elevator.runBackward(gamepad1.left_trigger);
+            else if (gamepad2.left_trigger > 0.5) {
+                elevator.runBackward(gamepad2.left_trigger);
             }
             else {
                 elevator.rest();
             }
 
             if (gamepad1.rightBumperWasPressed()) {
-                elevator.toggleShootPos();
+                elevator.toggleTopPos();
             }
             if (gamepad1.leftBumperWasPressed()) {
-                elevator.toggleIntakePos();
+                elevator.toggleBottomPos();
             }
             elevator.runElevator(dt);
+
+            // flower
+            if (gamepad1.yWasPressed() || gamepad2.yWasPressed()) {
+                shooter.launcher.toggleShootType();
+                if (shooter.launcher.isFlowerMode()) {
+                    elevator.toggleFlowerPos();
+                    shooter.hood.hoodFlower();
+                }
+            }
 
 //            if (gamepad1.dpad_right) {
 //                shooter.launcher.launcherFoward();

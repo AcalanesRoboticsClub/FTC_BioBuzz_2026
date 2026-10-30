@@ -12,22 +12,22 @@ import com.qualcomm.robotcore.hardware.Servo;
 @Config
 public class Hood {
     Servo hoodServo;
-    double position = 0.4;
+    double position = 0.5;
 
     public Hood(HardwareMap hardwareMap) {
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
     }
 
     public void hoodFlower() {
-        hoodServo.setPosition(0.8);
+        position = 0.7;
     }
 
     public void hoodShootLow() {
-        hoodServo.setPosition(0);
+        position = 0;
     }
 
     public void hoodShootHigh() {
-        hoodServo.setPosition(0.7);
+        position = 0.8;
     }
 
     public void incPosition() {

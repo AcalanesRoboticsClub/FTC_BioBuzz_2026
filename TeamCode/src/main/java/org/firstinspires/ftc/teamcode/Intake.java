@@ -34,7 +34,10 @@ public class Intake {
     }
 
     public void runIntake() {
-        if (intakeToggle) {
+        if (Elevator.elevatorisUp) {
+            intakeMotor.setPower(0);
+        }
+        else if (intakeToggle) {
             intakeMotor.setPower(1);
         }
         else {
