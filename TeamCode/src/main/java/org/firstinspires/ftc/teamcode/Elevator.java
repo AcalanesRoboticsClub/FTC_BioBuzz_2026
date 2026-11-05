@@ -24,10 +24,10 @@ public class Elevator {
     TouchSensor elevatorSwitch;
     public static boolean elevatorisUp = false;
     final double MAX_POWER = 0.5;
-    final double FLOWER_HEIGHT = 12.5;
+    final double FLOWER_HEIGHT = 13;
     static boolean SLEW_PID = true;
-    static double SLEW_RATE = 0.15;
-    double MAX_DIST = 13.5; // inches
+    static double SLEW_RATE = 0.1;
+    double MAX_DIST = 14; // inches
     double DIST_TOLERANCE = 1;
     final double NUM_TEETH = 10;
     final double TICKS_PER_REV = 357.7;
@@ -184,9 +184,9 @@ public class Elevator {
         elevatorMotor.setPower(Math.clamp(power, 0, MAX_POWER));
         lastPower = power;
 
-        if (ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_DIST) {
-            setHoldState();
-        }
+//        if (ticksToDist(elevatorMotor.etCurrentPosition()) >= MAX_DIST) {
+//            setHoldState();
+//        }
     }
 
     public void runBackward(double value) {
