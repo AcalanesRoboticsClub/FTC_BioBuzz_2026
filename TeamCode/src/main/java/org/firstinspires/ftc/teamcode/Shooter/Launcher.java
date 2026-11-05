@@ -36,6 +36,7 @@ public class Launcher {
     final double REST_ANGLE = 260.0;
     final double SHOOT_POS_ANGLE = 50.0;
     final double SHOOT_ANGLE = 360 * 2.5;
+    final double FLOWER_ANGLE = 360 * 1.2;
     final double GEAR_RATIO = 10.0 / 24.0;
     final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
     double ANGLE_TOLERANCE_TO_SHOOT = 20;
@@ -48,7 +49,7 @@ public class Launcher {
     double targetAngle = 0;
     enum typeShoot {FLOWER, SHOOT};
     typeShoot typeShootToggle = typeShoot.SHOOT;
-    final double FLOWER_POWER = 0.2;
+    final double FLOWER_POWER = 0.8;
     final double SHOOT_POWER = 1;
     TelemetryManager panelsTelemetry = Panels.getTelemetry();
 
@@ -130,15 +131,21 @@ public class Launcher {
         double currentAngle = getCurrentAngle();
 
         if (shootToggle) {
-            targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
-            launch_state = STATE.POSITION;
+            if (typeShootToggle == typeShoot.FLOWER) {
+                targetAngle = targetAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
+                launch_state = STATE.SHOOT;
+            }
+            else {
+                targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
+                launch_state = STATE.POSITION;
+            }
             shootToggle = false;
         }
 
         double error = targetAngle - currentAngle;
         double pidOutput = 1.0;
 
-        if (launch_state == STATE.SHOOT && error > 270) {
+        if (launch_state == STATE.SHOOT && !isFlowerMode() && error > 270) {
             launchMotor.setPower(shoot_power);
         }
         else {
@@ -187,6 +194,7 @@ public class Launcher {
 
         packet.put("Launch State", launch_state.toString());
         packet.put("Launch power", shoot_power);
+        packet.put("Launch shoot toggle", typeShootToggle.toString());
 //        packet.put("Current Angle", currentAngle);
 //        packet.put("Target Angle", targetAngle);
 //        packet.put("Error", error);

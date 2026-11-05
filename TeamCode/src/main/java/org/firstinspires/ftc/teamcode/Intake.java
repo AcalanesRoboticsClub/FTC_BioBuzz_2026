@@ -17,7 +17,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 @Config
 public class Intake {
     DcMotor intakeMotor;
-    boolean intakeToggle = false;
+//    boolean intakeToggle = false;
+    boolean overrideIntake = false;
+    enum STATE {REST, INTAKE, FORCE_INTAKE, SPIT};
+    STATE intakeToggle = STATE.REST;
 
     public Intake(HardwareMap hardwareMap) {
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor");
@@ -25,19 +28,26 @@ public class Intake {
     }
 
     public void toggle() {
-        if (intakeToggle) {
-            intakeToggle = false;
+        if (intakeToggle == STATE.REST) {
+            intakeToggle = STATE.INTAKE;
+        }
+        else if (Elevator.elevatorisUp && (intakeToggle == STATE.REST || intakeToggle == STATE.INTAKE)) {
+            intakeToggle = STATE.FORCE_INTAKE;
         }
         else {
-            intakeToggle = true;
+            intakeToggle = STATE.REST;
         }
     }
 
     public void runIntake() {
-        if (Elevator.elevatorisUp) {
+        if (intakeToggle == STATE.SPIT) {
+            intakeMotor.setPower(-1);
+            intakeToggle = STATE.REST;
+        }
+        else if (Elevator.elevatorisUp && intakeToggle != STATE.FORCE_INTAKE) {
             intakeMotor.setPower(0);
         }
-        else if (intakeToggle) {
+        else if (intakeToggle == STATE.INTAKE || intakeToggle == STATE.FORCE_INTAKE) {
             intakeMotor.setPower(1);
         }
         else {
@@ -45,12 +55,21 @@ public class Intake {
         }
     }
 
+    public void overrideIntake() {
+        if (overrideIntake) {
+            overrideIntake = false;
+        }
+        else {
+            overrideIntake = true;
+        }
+    }
+
     public void spit() {
-        intakeMotor.setPower(-1);
+        intakeToggle = STATE.SPIT;
     }
 
     public void rest() {
-        intakeMotor.setPower(0);
+        intakeToggle = STATE.REST;
     }
 
 }

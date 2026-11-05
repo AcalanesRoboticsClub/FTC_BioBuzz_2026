@@ -32,6 +32,7 @@ public class RobotOP extends LinearOpMode {
     DcMotor backLeftMotor;
     DcMotor frontRightMotor;
     DcMotor backRightMotor;
+    Servo ledIndicator;
 
     IMU imu;
     ElapsedTime timer = new ElapsedTime();
@@ -57,6 +58,8 @@ public class RobotOP extends LinearOpMode {
         elevator = new Elevator(hardwareMap);
         flower = new Flower(hardwareMap);
 
+        ledIndicator = hardwareMap.get(Servo.class, "led");
+
         frontLeftMotor = hardwareMap.dcMotor.get("frontLeft");
         backLeftMotor = hardwareMap.dcMotor.get("backLeft");
         frontRightMotor = hardwareMap.dcMotor.get("frontRight");
@@ -79,7 +82,8 @@ public class RobotOP extends LinearOpMode {
         timer.reset();
 
         elevator.toggleTopPos();
-        flower.openServo();
+        flower.extendFlowerServo();
+        flower.toggleFlowerDescorer();
 
         if (isStopRequested()) return;
 
@@ -150,11 +154,18 @@ public class RobotOP extends LinearOpMode {
             }
 
             intake.runIntake();
-            if (gamepad1.aWasPressed()) {
+            if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
                 intake.toggle();
             }
-            if (gamepad2.x) {
-                intake.spit(); // spit out balls in case stuck
+//            if (gamepad2.aWasPressed()) {
+//                intake.overrideIntake();
+//            }
+            if (gamepad1.x) {
+                intake.spit();
+            }
+
+            if (gamepad2.xWasPressed()) {
+                flower.toggleFlowerDescorer();
             }
 
             if (gamepad1.dpadUpWasPressed()) {
@@ -165,6 +176,14 @@ public class RobotOP extends LinearOpMode {
 //                shooter.hood.hoodFlower();
                 shooter.hood.hoodShootLow();
             }
+//            if (gamepad1.dpadLeftWasPressed()) {
+////                shooter.hood.hoodShoot();
+//                shooter.hood.hoodShootMidHigh();
+//            }
+//            if (gamepad1.dpadRightWasPressed()) {
+////                shooter.hood.hoodFlower();
+//                shooter.hood.hoodShootMidLow();
+//            }
             if (gamepad2.dpadUpWasPressed()) {
                 shooter.hood.incPosition();
             }
@@ -183,10 +202,10 @@ public class RobotOP extends LinearOpMode {
                 elevator.rest();
             }
 
-            if (gamepad1.rightBumperWasPressed()) {
+            if (gamepad1.rightBumperWasPressed() || gamepad2.rightBumperWasPressed()) {
                 elevator.toggleTopPos();
             }
-            if (gamepad1.leftBumperWasPressed()) {
+            if (gamepad1.leftBumperWasPressed() || gamepad2.leftBumperWasPressed()) {
                 elevator.toggleBottomPos();
             }
             elevator.runElevator(dt);
@@ -200,12 +219,22 @@ public class RobotOP extends LinearOpMode {
                 }
             }
 
+            if(shooter.launcher.isFlowerMode()) {
+                ledIndicator.setPosition(0.5); // green
+            } else {
+                ledIndicator.setPosition(0.28); // red
+            }
+
 //            if (gamepad1.dpad_right) {
 //                shooter.launcher.launcherFoward();
 //            }
 //            if (gamepad1.dpad_left) {
 //                shooter.launcher.launcherForwardSlow();
 //            }
+
+            telemetry.addData("Flower state", shooter.launcher.isFlowerMode());
+            telemetry.addData("Hood pos", shooter.hood.getPos());
+            telemetry.update();
 
             TelemetryPacket packet = new TelemetryPacket();
             packet.put("launcher angle", shooter.launcher.getCurrentAngle());

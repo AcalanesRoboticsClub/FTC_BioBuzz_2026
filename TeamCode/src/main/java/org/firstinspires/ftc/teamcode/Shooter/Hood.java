@@ -18,8 +18,12 @@ public class Hood {
         hoodServo = hardwareMap.get(Servo.class, "hoodServo");
     }
 
+    public double getPos() {
+        return hoodServo.getPosition();
+    }
+
     public void hoodFlower() {
-        position = 0.7;
+        position = 0.8;
     }
 
     public void hoodShootLow() {
@@ -28,6 +32,14 @@ public class Hood {
 
     public void hoodShootHigh() {
         position = 0.8;
+    }
+
+    public void hoodShootMidHigh() {
+        position = 0.3;
+    }
+
+    public void hoodShootMidLow() {
+        position = 0.5;
     }
 
     public void incPosition() {
