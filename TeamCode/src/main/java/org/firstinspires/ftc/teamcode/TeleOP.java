@@ -23,20 +23,10 @@ import org.firstinspires.ftc.teamcode.Shooter.Shooter;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
 @TeleOp @Config
-public class RobotOP extends LinearOpMode {
-    Intake intake;
-    Shooter shooter;
-    Elevator elevator;
-    Flower flower;
-    DcMotor frontLeftMotor;
-    DcMotor backLeftMotor;
-    DcMotor frontRightMotor;
-    DcMotor backRightMotor;
-    Servo ledIndicator;
+public class TeleOP extends LinearOpMode {
+    Robot robot;
 
     IMU imu;
-    ElapsedTime timer = new ElapsedTime();
-    double timeForLauncherStart = 100;
 
     private double calcLargestChange(double a, double b) {
         // Return the value of the greatest absolute value of either a or b. Used for dual controller input
@@ -53,21 +43,7 @@ public class RobotOP extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
-        shooter = new Shooter(hardwareMap);
-        intake = new Intake(hardwareMap);
-        elevator = new Elevator(hardwareMap);
-        flower = new Flower(hardwareMap);
-
-        ledIndicator = hardwareMap.get(Servo.class, "led");
-
-        frontLeftMotor = hardwareMap.dcMotor.get("frontLeft");
-        backLeftMotor = hardwareMap.dcMotor.get("backLeft");
-        frontRightMotor = hardwareMap.dcMotor.get("frontRight");
-        backRightMotor = hardwareMap.dcMotor.get("backRight");
-
-        // Reverse some of the drive motors depending on physical setup
-        frontLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
-        backLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        robot = new Robot(hardwareMap);
 
         // Retrieve the IMU from the hardware map
         imu = hardwareMap.get(IMU.class, "imu");
@@ -79,18 +55,12 @@ public class RobotOP extends LinearOpMode {
         imu.initialize(parameters);
 
         waitForStart();
-        timer.reset();
 
-        elevator.toggleTopPos();
-        flower.extendFlowerServo();
-        flower.toggleFlowerDescorer();
+        robot.initialize();
 
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
-            double dt = timer.seconds();
-            timer.reset();
-
             // Take whichever value is the most drastic change to use from either controller
             double y = calcLargestChange(-gamepad1.left_stick_y, -gamepad2.left_stick_y); // Y stick values are reported as inverted by the controller
             double x = calcLargestChange(gamepad1.left_stick_x, gamepad2.left_stick_x);
@@ -125,18 +95,10 @@ public class RobotOP extends LinearOpMode {
 //            telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
 //            telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
 
-            frontLeftMotor.setPower(frontLeftPower);
-            backLeftMotor.setPower(backLeftPower);
-            frontRightMotor.setPower(frontRightPower);
-            backRightMotor.setPower(backRightPower);
-
-            // Delay for launcher to start to give time to flower servo
-            if (timeForLauncherStart <= 0) {
-                shooter.launcher.runLauncher(dt);
-            }
-            else {
-                timeForLauncherStart -= 2;
-            }
+//            frontLeftMotor.setPower(frontLeftPower);
+//            backLeftMotor.setPower(backLeftPower);
+//            frontRightMotor.setPower(frontRightPower);
+//            backRightMotor.setPower(backRightPower);
 
             if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
                 shooter.launcher.toggleShoot();
@@ -153,7 +115,6 @@ public class RobotOP extends LinearOpMode {
                 shooter.launcher.shootState();
             }
 
-            intake.runIntake();
             if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
                 intake.toggle();
             }
@@ -169,12 +130,10 @@ public class RobotOP extends LinearOpMode {
             }
 
             if (gamepad1.dpadUpWasPressed()) {
-//                shooter.hood.hoodShoot();
-                shooter.hood.hoodShootHigh();
+                robot.changeHoodPos(Shooter.HOOD_STATE.HIGH);
             }
             if (gamepad1.dpadDownWasPressed()) {
-//                shooter.hood.hoodFlower();
-                shooter.hood.hoodShootLow();
+                robot.changeHoodPos(Shooter.HOOD_STATE.LOW);
             }
 //            if (gamepad1.dpadLeftWasPressed()) {
 ////                shooter.hood.hoodShoot();
@@ -185,12 +144,11 @@ public class RobotOP extends LinearOpMode {
 //                shooter.hood.hoodShootMidLow();
 //            }
             if (gamepad2.dpadUpWasPressed()) {
-                shooter.hood.incPosition();
+                robot.changeHoodPos(Shooter.HOOD_STATE.INC);
             }
             if (gamepad2.dpadDownWasPressed()) {
-                shooter.hood.decPosition();
+                robot.changeHoodPos(Shooter.HOOD_STATE.DEC);
             }
-            shooter.hood.updateHood();
 
             if (gamepad2.right_trigger > 0.5) {
                 elevator.runForward(gamepad2.right_trigger);
@@ -208,29 +166,13 @@ public class RobotOP extends LinearOpMode {
             if (gamepad1.leftBumperWasPressed() || gamepad2.leftBumperWasPressed()) {
                 elevator.toggleBottomPos();
             }
-            elevator.runElevator(dt);
 
             // flower
             if (gamepad1.yWasPressed() || gamepad2.yWasPressed()) {
-                shooter.launcher.toggleShootType();
-                if (shooter.launcher.isFlowerMode()) {
-                    elevator.toggleFlowerPos();
-                    shooter.hood.hoodFlower();
-                }
+                robot.toggleFlower();
             }
 
-            if(shooter.launcher.isFlowerMode()) {
-                ledIndicator.setPosition(0.5); // green
-            } else {
-                ledIndicator.setPosition(0.28); // red
-            }
-
-//            if (gamepad1.dpad_right) {
-//                shooter.launcher.launcherFoward();
-//            }
-//            if (gamepad1.dpad_left) {
-//                shooter.launcher.launcherForwardSlow();
-//            }
+            robot.runMechanisms();
 
             telemetry.addData("Flower state", shooter.launcher.isFlowerMode());
             telemetry.addData("Hood pos", shooter.hood.getPos());

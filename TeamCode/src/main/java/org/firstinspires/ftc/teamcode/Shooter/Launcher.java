@@ -17,6 +17,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 //import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import org.firstinspires.ftc.teamcode.Helpers;
+import org.firstinspires.ftc.teamcode.Robot;
+
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
@@ -31,26 +33,33 @@ public class Launcher {
     final double NUDGE_ZERO_AMOUNT = 1;
     double launcherZeroPos = 0.0;
 
+    // Acceleration limit
     static boolean SLEW_PID = true;
     static double SLEW_RATE = 0.15;
+
+    // Angle constants
     final double REST_ANGLE = 260.0;
     final double SHOOT_POS_ANGLE = 50.0;
     final double SHOOT_ANGLE = 360 * 2.5;
     final double FLOWER_ANGLE = 360 * 1.2;
+
+    // PID constants
     final double GEAR_RATIO = 10.0 / 24.0;
     final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
     double ANGLE_TOLERANCE_TO_SHOOT = 20;
     double ANGLE_TOLERANCE_TO_REST = 30;
-    double shoot_power = 1;
-
-    boolean shootToggle = false;
-    enum STATE {REST, POSITION, SHOOT};
-    STATE launch_state = STATE.REST;
     double targetAngle = 0;
-    enum typeShoot {FLOWER, SHOOT};
-    typeShoot typeShootToggle = typeShoot.SHOOT;
+
+    // Shoot power constants
     final double FLOWER_POWER = 0.8;
     final double SHOOT_POWER = 1;
+    double shoot_power = 1;
+
+    // STATES
+    public enum LAUNCH_STATE {REST, POSITION, SHOOT};
+    public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
+    boolean shootToggle = false;
+
     TelemetryManager panelsTelemetry = Panels.getTelemetry();
 
     @Config
@@ -103,41 +112,26 @@ public class Launcher {
         shootToggle = true;
     }
 
-    public boolean isFlowerMode() {
-        if (typeShootToggle == typeShoot.FLOWER) {
-            return true;
-        }
-        return false;
+    public void toggleFlowerPower() {
+        shoot_power = FLOWER_POWER;
     }
 
-    public void toggleShootType() {
-        if (typeShootToggle == typeShoot.SHOOT) {
-            typeShootToggle = typeShoot.FLOWER;
-            shoot_power = FLOWER_POWER;
-        }
-        else {
-            typeShootToggle = typeShoot.SHOOT;
-            shoot_power = SHOOT_POWER;
-        }
+    public void toggleShootPower() {
+        shoot_power = SHOOT_POWER;
     }
-
-//    public void toggleFlower() {
-//        typeShootToggle = typeShoot.FLOWER;
-//        shoot_power = FLOWER_POWER;
-//    }
 
     public void runLauncher(double elapsedTime) {
 //        double targetPos = degreesToTicks(REST_ANGLE);
         double currentAngle = getCurrentAngle();
 
         if (shootToggle) {
-            if (typeShootToggle == typeShoot.FLOWER) {
+            if (shoot_power == FLOWER_POWER) {
                 targetAngle = targetAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
-                launch_state = STATE.SHOOT;
+                launch_state = LAUNCH_STATE.SHOOT;
             }
             else {
                 targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
-                launch_state = STATE.POSITION;
+                launch_state = LAUNCH_STATE.POSITION;
             }
             shootToggle = false;
         }
@@ -145,7 +139,7 @@ public class Launcher {
         double error = targetAngle - currentAngle;
         double pidOutput = 1.0;
 
-        if (launch_state == STATE.SHOOT && !isFlowerMode() && error > 270) {
+        if (launch_state == LAUNCH_STATE.SHOOT && !(shoot_power == FLOWER_POWER) && error > 270) {
             launchMotor.setPower(shoot_power);
         }
         else {
@@ -180,32 +174,17 @@ public class Launcher {
             launchMotor.setPower(pidOutput);
         }
 
-        if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == STATE.POSITION) {
-            launch_state = STATE.SHOOT;
+        if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == LAUNCH_STATE.POSITION) {
+            launch_state = LAUNCH_STATE.SHOOT;
             targetAngle = targetAngle + (SHOOT_ANGLE - SHOOT_POS_ANGLE);
 //            targetAngle = currentAngle + (SHOOT_ANGLE - (currentAngle % (360*3)));
         }
-        else if (Math.abs(error) < ANGLE_TOLERANCE_TO_REST && launch_state == STATE.SHOOT) {
-            launch_state = STATE.REST;
+        else if (Math.abs(error) < ANGLE_TOLERANCE_TO_REST && launch_state == LAUNCH_STATE.SHOOT) {
+            launch_state = LAUNCH_STATE.REST;
             targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
         }
 
-        TelemetryPacket packet = new TelemetryPacket();
 
-        packet.put("Launch State", launch_state.toString());
-        packet.put("Launch power", shoot_power);
-        packet.put("Launch shoot toggle", typeShootToggle.toString());
-//        packet.put("Current Angle", currentAngle);
-//        packet.put("Target Angle", targetAngle);
-//        packet.put("Error", error);
-//        packet.put("PID Output", pidOutput);
-
-        packet.put("kP", PID_COEFFS.kP);
-        packet.put("kI", PID_COEFFS.kI);
-        packet.put("kD", PID_COEFFS.kD);
-        packet.put("kF", PID_COEFFS.kF);
-
-        FtcDashboard.getInstance().sendTelemetryPacket(packet);
 
 //        panelsTelemetry.debug("Init was ran!");
 //        panelsTelemetry.graph("Current Angle", currentAngle);
@@ -236,7 +215,7 @@ public class Launcher {
     }
 
     public void shootState() {
-        launch_state = STATE.SHOOT;
+        launch_state = LAUNCH_STATE.SHOOT;
         targetAngle = targetAngle + (SHOOT_ANGLE - SHOOT_POS_ANGLE);
     }
 
