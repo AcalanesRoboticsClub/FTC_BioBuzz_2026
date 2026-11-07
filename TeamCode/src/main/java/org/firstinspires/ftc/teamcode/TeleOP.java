@@ -22,7 +22,8 @@ import org.firstinspires.ftc.teamcode.Shooter.Launcher;
 import org.firstinspires.ftc.teamcode.Shooter.Shooter;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
-@TeleOp @Config
+@TeleOp
+@Config
 public class TeleOP extends LinearOpMode {
     Robot robot;
 

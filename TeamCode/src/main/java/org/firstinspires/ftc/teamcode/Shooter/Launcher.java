@@ -60,8 +60,6 @@ public class Launcher {
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
     boolean shootToggle = false;
 
-    TelemetryManager panelsTelemetry = Panels.getTelemetry();
-
     @Config
     public static class PID_COEFFS {
         public static double kP = 0.0018;
@@ -195,6 +193,7 @@ public class Launcher {
 
 
 
+//        TelemetryManager panelsTelemetry = Panels.getTelemetry();
 //        panelsTelemetry.debug("Init was ran!");
 //        panelsTelemetry.graph("Current Angle", currentAngle);
 //        panelsTelemetry.graph("Target Angle", targetAngle);
