@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.autos;
+package org.firstinspires.ftc.teamcode;
 
 import com.pedropathing.api.Paths;
 
@@ -13,8 +13,6 @@ import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-
-import org.firstinspires.ftc.teamcode.pedro.Constants;
 
 @Autonomous(name = "2tipBlue", group = "Autonomous")
 public class auto2tipBlue extends LinearOpMode {
@@ -55,7 +53,7 @@ public class auto2tipBlue extends LinearOpMode {
     @Override
     public void runOpMode() {
         Scheduler.reset();
-        follower = Constants.create(hardwareMap);
+        follower = PedroConstants.create(hardwareMap);
         follower.setPose(start);
         follower.update();
 
