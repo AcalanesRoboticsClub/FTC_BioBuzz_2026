@@ -14,7 +14,7 @@ import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-@Autonomous(name = "2tipBlue", group = "Autonomous")
+@Autonomous
 public class auto2tipBlue extends LinearOpMode {
 
     private Follower follower;
