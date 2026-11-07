@@ -148,6 +148,7 @@ public class Launcher {
         else if (launch_state != LAUNCH_STATE.SPIT) {
             launchMotor.setPower(-0.5);
             launch_state = LAUNCH_STATE.REST;
+            lastPIDOutput = -0.5;
         }
         else {
             integral += error * elapsedTime;
