@@ -56,10 +56,6 @@ public class Robot {
         flower.toggleFlowerDescorer();
     }
 
-    public void changeHoodPos(Shooter.HOOD_STATE state) {
-        shooter.changeHoodPos(state);
-    }
-
     public void toggleFlower() {
         shooter.toggleFlowerMode();
 
@@ -69,6 +65,11 @@ public class Robot {
         } else {
             ledIndicator.setPosition(0.28); // red
         }
+    }
+
+    public void spitAll() {
+        shooter.launcher.spit();
+        intake.spit();
     }
 
     public void runMechanisms() {

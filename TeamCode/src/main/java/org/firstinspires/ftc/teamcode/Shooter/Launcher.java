@@ -56,7 +56,7 @@ public class Launcher {
     double shoot_power = 1;
 
     // STATES
-    public enum LAUNCH_STATE {REST, POSITION, SHOOT};
+    public enum LAUNCH_STATE {REST, POSITION, SHOOT, SPIT};
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
     boolean shootToggle = false;
 
@@ -112,6 +112,11 @@ public class Launcher {
         shootToggle = true;
     }
 
+    public void spit() {
+        launch_state = LAUNCH_STATE.SPIT;
+        shootToggle = false;
+    }
+
     public void toggleFlowerPower() {
         shoot_power = FLOWER_POWER;
     }
@@ -141,6 +146,10 @@ public class Launcher {
 
         if (launch_state == LAUNCH_STATE.SHOOT && !(shoot_power == FLOWER_POWER) && error > 270) {
             launchMotor.setPower(shoot_power);
+        }
+        else if (launch_state != LAUNCH_STATE.SPIT) {
+            launchMotor.setPower(-0.5);
+            launch_state = LAUNCH_STATE.REST;
         }
         else {
             integral += error * elapsedTime;
@@ -219,7 +228,4 @@ public class Launcher {
         targetAngle = targetAngle + (SHOOT_ANGLE - SHOOT_POS_ANGLE);
     }
 
-    public void spit() {
-        launchMotor.setPower(-1);
-    }
 }

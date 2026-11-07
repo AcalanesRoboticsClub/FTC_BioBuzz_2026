@@ -101,39 +101,41 @@ public class TeleOP extends LinearOpMode {
 //            backRightMotor.setPower(backRightPower);
 
             if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
-                shooter.launcher.toggleShoot();
+                robot.shooter.launcher.toggleShoot();
             }
             if (gamepad2.dpadRightWasPressed()) {
-                shooter.launcher.shiftZeroPositionForward();
+                robot.shooter.launcher.shiftZeroPositionForward();
             }
             if (gamepad2.dpadLeftWasPressed()) {
-                shooter.launcher.shiftZeroPositionBackward();
+                robot.shooter.launcher.shiftZeroPositionBackward();
             }
 //            telemetry.addData("Launch state: ", shooter.launcher.getCurrentState());
 
             if (gamepad2.backWasPressed()) {
-                shooter.launcher.shootState();
+                robot.shooter.launcher.shootState();
             }
 
             if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
-                intake.toggle();
+                robot.intake.toggle();
             }
 //            if (gamepad2.aWasPressed()) {
 //                intake.overrideIntake();
 //            }
             if (gamepad1.x) {
-                intake.spit();
+                robot.intake.spit();
             }
+            // TODO: add launcher spit button
 
             if (gamepad2.xWasPressed()) {
-                flower.toggleFlowerDescorer();
+                robot.flower.toggleFlowerDescorer();
             }
 
+            // presets, will eventually also change elevator/launcher
             if (gamepad1.dpadUpWasPressed()) {
-                robot.changeHoodPos(Shooter.HOOD_STATE.HIGH);
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.HIGH);
             }
             if (gamepad1.dpadDownWasPressed()) {
-                robot.changeHoodPos(Shooter.HOOD_STATE.LOW);
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.LOW);
             }
 //            if (gamepad1.dpadLeftWasPressed()) {
 ////                shooter.hood.hoodShoot();
@@ -144,27 +146,27 @@ public class TeleOP extends LinearOpMode {
 //                shooter.hood.hoodShootMidLow();
 //            }
             if (gamepad2.dpadUpWasPressed()) {
-                robot.changeHoodPos(Shooter.HOOD_STATE.INC);
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.INC);
             }
             if (gamepad2.dpadDownWasPressed()) {
-                robot.changeHoodPos(Shooter.HOOD_STATE.DEC);
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.DEC);
             }
 
             if (gamepad2.right_trigger > 0.5) {
-                elevator.runForward(gamepad2.right_trigger);
+                robot.shooter.elevator.runForward(gamepad2.right_trigger);
             }
             else if (gamepad2.left_trigger > 0.5) {
-                elevator.runBackward(gamepad2.left_trigger);
+                robot.shooter.elevator.runBackward(gamepad2.left_trigger);
             }
             else {
-                elevator.rest();
+                robot.shooter.elevator.rest();
             }
 
             if (gamepad1.rightBumperWasPressed() || gamepad2.rightBumperWasPressed()) {
-                elevator.toggleTopPos();
+                robot.shooter.elevator.toggleTopPos();
             }
             if (gamepad1.leftBumperWasPressed() || gamepad2.leftBumperWasPressed()) {
-                elevator.toggleBottomPos();
+                robot.shooter.elevator.toggleBottomPos();
             }
 
             // flower
@@ -174,13 +176,13 @@ public class TeleOP extends LinearOpMode {
 
             robot.runMechanisms();
 
-            telemetry.addData("Flower state", shooter.launcher.isFlowerMode());
-            telemetry.addData("Hood pos", shooter.hood.getPos());
+            telemetry.addData("Flower state", robot.shooter.isFlowerMode());
+            telemetry.addData("Hood pos", robot.shooter.hood.getPos());
             telemetry.update();
 
             TelemetryPacket packet = new TelemetryPacket();
-            packet.put("launcher angle", shooter.launcher.getCurrentAngle());
-            packet.put("launcher ticks", shooter.launcher.getCurrentTicks());
+            packet.put("launcher angle", robot.shooter.launcher.getCurrentAngle());
+            packet.put("launcher ticks", robot.shooter.launcher.getCurrentTicks());
 //            packet.put("launch angle", shooter.launcher.getCurrentAngle());
 //            packet.put("launch output", shooter.launcher.getOutput());
 //            packet.put("kP", shooter.launcher.PID_COEFFS.kP);
