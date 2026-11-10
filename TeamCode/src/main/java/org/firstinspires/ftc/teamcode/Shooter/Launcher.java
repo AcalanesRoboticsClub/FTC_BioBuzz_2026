@@ -43,9 +43,11 @@ public class Launcher {
     final double SHOOT_ANGLE = 360 * 2.5;
     final double FLOWER_ANGLE = 360 * 1.2;
 
-    // PID constants
+    // Mechanism constants
     final double GEAR_RATIO = 10.0 / 24.0;
     final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
+
+    // Tolerances
     double ANGLE_TOLERANCE_TO_SHOOT = 20;
     double ANGLE_TOLERANCE_TO_REST = 30;
     double targetAngle = 0;
@@ -60,13 +62,27 @@ public class Launcher {
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
     boolean shootToggle = false;
 
+    // Profile values
+    double lastTargetAngle = 0;
+    double profileStartAngle = 0;
+    double profileTargetAngle = 0;
+    double profileDir = 1;
+    ElapsedTime launcher_motion_timer = new ElapsedTime();
+
+    // PID TUNING COEFFICIENTS
     @Config
-    public static class PID_COEFFS {
+    public static class LAUNCHER_PID_COEFFS {
+        public static double kV = 0;
+        public static double kA = 0;
         public static double kP = 0.0018;
         public static double kI = 0;
         public static double kD = 0.00013;
         public static double kF = 0.05;
+        public static double KP_POS = 0;
     }
+    public static double MAX_VEL = 1;
+    public static double MAX_ACCEL = 1;
+    public static double KP_POS = 0; // small correction kP for pose error
     double lastError = 0.0;
     double integral = 0.0;
     double lastPIDOutput = 0.0;
@@ -126,6 +142,7 @@ public class Launcher {
     public void runLauncher(double elapsedTime) {
 //        double targetPos = degreesToTicks(REST_ANGLE);
         double currentAngle = getCurrentAngle();
+        double currentVel = ticksToDegrees(launchMotor.getVelocity());
 
         if (shootToggle) {
             if (shoot_power == FLOWER_POWER) {
@@ -137,6 +154,16 @@ public class Launcher {
                 launch_state = LAUNCH_STATE.POSITION;
             }
             shootToggle = false;
+        }
+
+        if (targetAngle != lastTargetAngle) {
+            profileStartAngle = currentAngle;
+            profileTargetAngle = targetAngle;
+            profileDir = Math.signum(targetAngle - currentAngle);
+            launcher_motion_timer.reset();
+            integral = 0;
+            lastError = 0;
+            lastTargetAngle = targetAngle;
         }
 
         double error = targetAngle - currentAngle;
@@ -151,28 +178,44 @@ public class Launcher {
             lastPIDOutput = -0.5;
         }
         else {
+            // Motion profile
+            double dist = Math.abs(profileTargetAngle - profileStartAngle);
+            double[] profile = Shooter.motion_profile(MAX_ACCEL, MAX_VEL, dist, launcher_motion_timer.seconds());
+
+            // predicted values
+            double refAngle = profileStartAngle + profileDir * profile[0];
+            double refVel = profileDir * profile[1];
+            double refAcc = profileDir * profile[2];
+
+            // errors
+            double velError = refVel - currentVel;
+            double posError = refAngle - currentAngle;
+
             integral += error * elapsedTime;
             final double I_ZONE = 40;        // only integrate within 40 deg of target
-            final double I_MAX_POWER = 0.2;  // integral can contribute at most 0.2 power
+            final double I_MAX_POWER = 0.2;  // integral only contributes max of 0.2 power
 
             if (Math.abs(error) < I_ZONE) {
                 integral += error * elapsedTime;
-                if (PID_COEFFS.kI != 0) {
-                    double lim = I_MAX_POWER / PID_COEFFS.kI;
+                if (LAUNCHER_PID_COEFFS.kI != 0) {
+                    double lim = I_MAX_POWER / LAUNCHER_PID_COEFFS.kI;
                     integral = Math.max(-lim, Math.min(lim, integral));
                 }
             } else {
                 integral = 0;
             }
 
-            double derivative = (error - lastError) / elapsedTime;
-            lastError = error;
+            double derivative = (velError - lastError) / elapsedTime;
+            lastError = velError;
 
-            pidOutput = PID_COEFFS.kP * error +
-                    PID_COEFFS.kI * integral +
-                    PID_COEFFS.kD * derivative;
+            pidOutput = LAUNCHER_PID_COEFFS.kV * refVel +
+                    LAUNCHER_PID_COEFFS.kA * refAcc +
+                    LAUNCHER_PID_COEFFS.kP * velError +
+                    LAUNCHER_PID_COEFFS.kI * integral +
+                    LAUNCHER_PID_COEFFS.kD * derivative +
+                    LAUNCHER_PID_COEFFS.KP_POS * posError;
 
-            pidOutput += PID_COEFFS.kF * Math.sin(Math.toRadians(currentAngle % 360));
+            pidOutput += LAUNCHER_PID_COEFFS.kF * Math.sin(Math.toRadians(currentAngle % 360));
 
             if (SLEW_PID) {
                 pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
