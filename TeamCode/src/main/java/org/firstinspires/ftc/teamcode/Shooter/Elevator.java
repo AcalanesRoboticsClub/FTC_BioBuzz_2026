@@ -19,17 +19,19 @@ public class Elevator {
     TouchSensor elevatorSwitch;
     public static boolean elevatorisUp = false;
     final double MAX_POWER = 0.5;
-    final double FLOWER_HEIGHT = 13;
+    final double FLOWER_HEIGHT = 8.6; // actual is 9.4
     static boolean SLEW_PID = true;
     static double SLEW_RATE = 0.1;
-    double MAX_HEIGHT = 14; // inches
+    double MAX_HEIGHT = 8.6; // inches
     double DIST_TOLERANCE = 1;
+    public static double VEL_TOLERANCE = 0.01;
     final double NUM_TEETH = 10;
-    final double TICKS_PER_REV = 357.7;
+    final double TICKS_PER_REV = 1607 * 9.875 * 8 / (25.4*10) * 8/7; // 357.7
+    //
     final double GEAR_DIAMETER = 1.158;
     enum STATE {BOTTOM, TOP, FLOWER, MANUAL, STOP, HOLD_POS};
-    STATE elevatorState = STATE.HOLD_POS;
-    STATE last_state = STATE.HOLD_POS;
+    STATE elevatorState = STATE.STOP;
+    STATE last_state = STATE.STOP;
 
     // PID values
     double integral = 0.0;
@@ -42,20 +44,22 @@ public class Elevator {
     double profileStartPos = 0;
     double profileTarget = 0;
     double profileDir = 1;
+    double refPos = 0;
+    double profileDist = 0;
     ElapsedTime elevator_motion_timer = new ElapsedTime();
 
     // TUNING COEFFICIENTS
-    public static double MAX_VEL = 1;
-    public static double MAX_ACCEL = 1;
+    public static double MAX_VEL = 5;
+    public static double MAX_ACCEL = 3;
     @Config
     public static class ELEVATOR_PID_COEFFS {
-        public static double kP = 0.3;
+        public static double kP = 0.01;
         public static double kI = 0;
         public static double kD = 0;
-        public static double kV = 0;
+        public static double kV = 0.3;
         public static double kA = 0;
-        public static double kG = 0.06;
-        public static double KP_POS = 0; // small correction kP for pose error
+        public static double kG = 0.23;
+        public static double KP_POS = 0.8; // small correction kP for pose error
     }
 
     private double ticksToDist(double ticks) {
@@ -138,6 +142,7 @@ public class Elevator {
                 profileDir = 1;
                 elevator_motion_timer.reset();
             }
+            profileDist = Math.abs(profileTarget - profileStartPos);
             integral = 0;
             lastError = 0;
             last_state = elevatorState;
@@ -169,11 +174,10 @@ public class Elevator {
     //                error = holdPos - currentPos;
     //            }
 
-                double dist = Math.abs(profileTarget - profileStartPos);
-                double[] profile = Shooter.motion_profile(MAX_ACCEL, MAX_VEL, dist, elevator_motion_timer.seconds());
+                double[] profile = Shooter.motion_profile(MAX_ACCEL, MAX_VEL, profileDist, elevator_motion_timer.seconds());
 
                 // predicted values
-                double refPos = profileStartPos + profileDir * profile[0];
+                refPos = profileStartPos + profileDir * profile[0];
                 double refVel = profileDir * profile[1];
                 double refAcc = profileDir * profile[2];
 
@@ -181,7 +185,7 @@ public class Elevator {
                 double velError = refVel - currentVel;
                 double posError = refPos - currentPos;
 
-                error = profileDir - currentPos;
+                error = profileTarget - currentPos;
 
                 // velocity PID
                 integral += velError * elapsedTime;
@@ -194,6 +198,13 @@ public class Elevator {
                         ELEVATOR_PID_COEFFS.kI * integral +
                         ELEVATOR_PID_COEFFS.kD * derivative +
                         ELEVATOR_PID_COEFFS.KP_POS * posError;
+
+//                if (Math.abs(velError) < VEL_TOLERANCE && elevatorState == STATE.TOP) {
+//                    setHoldState();
+//                }
+//                if (Math.abs(velError) < VEL_TOLERANCE && elevatorState == STATE.BOTTOM) {
+//                    elevatorState = STATE.STOP; // don't hold position, just stop motor
+//                }
             }
 
             pidOutput += ELEVATOR_PID_COEFFS.kG;
@@ -207,22 +218,22 @@ public class Elevator {
                     Math.min(1, pidOutput));
 
             elevatorMotor.setPower(pidOutput);
+        }
 
-            if (Math.abs(error) < DIST_TOLERANCE && elevatorState == STATE.TOP) {
-                setHoldState();
-            }
-            if (Math.abs(error) < DIST_TOLERANCE && elevatorState == STATE.BOTTOM) {
-                elevatorState = STATE.STOP; // don't hold position, just stop motor
-            }
+        if (ticksToDist(elevatorMotor.getCurrentPosition()) < DIST_TOLERANCE && (elevatorState == STATE.MANUAL || elevatorState == STATE.BOTTOM || elevatorState == STATE.HOLD_POS)) {
+            elevatorState = STATE.STOP; // don't hold position, just stop motor
         }
 
         TelemetryPacket packet = new TelemetryPacket();
 
         packet.put("Switch pressed", hitBottom());
         packet.put("Elevator State", elevatorState.toString());
-//        packet.put("Current position", currentPos);
-//        packet.put("Error", error);
-//        packet.put("PID Output", pidOutput);
+        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
+        packet.put("Elevator Current position", currentPos);
+        packet.put("Elevator Reference position", refPos);
+//        packet.put("Elevator Reference position", refPos);
+        packet.put("Error", error);
+        packet.put("PID Output", pidOutput);
 
 //        packet.put("Slew PID On", SLEW_PID);
 //        packet.put("Slew rate", SLEW_RATE);
@@ -245,7 +256,7 @@ public class Elevator {
         elevatorMotor.setPower(Math.clamp(power, 0, MAX_POWER));
         lastPower = power;
 
-//        if (ticksToDist(elevatorMotor.etCurrentPosition()) >= MAX_HEIGHT) {
+//        if (ticksToDist(elevatorMotor.getCurrentPosition()) >= MAX_HEIGHT) {
 //            setHoldState();
 //        }
     }
@@ -255,6 +266,10 @@ public class Elevator {
         double power = Helpers.slew(0.4, -Math.clamp(value, 0, MAX_POWER), lastPower);
         elevatorMotor.setPower(-Math.clamp(power, 0, MAX_POWER));
         lastPower = power;
+
+//        if (ticksToDist(elevatorMotor.getCurrentPosition()) <= DIST_TOLERANCE) {
+//            elevatorState = STATE.STOP;
+//        }
     }
 
     public void rest() {
