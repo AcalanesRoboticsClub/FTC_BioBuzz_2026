@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Shooter.Shooter;
@@ -28,8 +29,11 @@ public class Robot {
 
     // Robot pose
     public static Pose robotPose;
+    VoltageSensor vs;
+    double volts;
 
     ElapsedTime timer = new ElapsedTime();
+    ElapsedTime voltTimer = new ElapsedTime();
 
     public Robot(HardwareMap hardwareMap) {
         shooter = new Shooter(hardwareMap);
@@ -47,7 +51,10 @@ public class Robot {
         frontLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         backLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
 
+        vs = hardwareMap.voltageSensor.iterator().next();
+
         timer.reset();
+        voltTimer.reset();
     }
 
     public void initialize() {
@@ -73,12 +80,17 @@ public class Robot {
     }
 
     public void runMechanisms() {
+        if (voltTimer.seconds() > 0.5) {
+            volts = vs.getVoltage();
+            voltTimer.reset();
+        }
+
         double dt = timer.seconds();
         timer.reset();
 
         // Delay for launcher to start to give time to flower servo
         if (timeForLauncherStart <= 0) {
-            shooter.launcher.runLauncher(dt);
+            shooter.launcher.runLauncher(dt, volts);
         }
         else {
             timeForLauncherStart -= 2;

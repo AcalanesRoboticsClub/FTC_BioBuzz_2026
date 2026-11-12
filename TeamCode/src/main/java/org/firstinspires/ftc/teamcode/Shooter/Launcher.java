@@ -34,7 +34,7 @@ public class Launcher {
     double launcherZeroPos = 0.0;
 
     // Acceleration limit
-    static boolean SLEW_PID = true;
+    static boolean SLEW_PID = false;
     static double SLEW_RATE = 0.15;
 
     // Angle constants
@@ -48,7 +48,7 @@ public class Launcher {
     final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
 
     // Tolerances
-    double ANGLE_TOLERANCE_TO_SHOOT = 20;
+    public static double ANGLE_TOLERANCE_TO_SHOOT = 35;
     double ANGLE_TOLERANCE_TO_REST = 30;
     double targetAngle = 0;
 
@@ -73,28 +73,29 @@ public class Launcher {
     // PID TUNING COEFFICIENTS
     @Config
     public static class LAUNCHER_PID_COEFFS {
-        public static double kS = 0;
-        public static double kV = 0;
-        public static double kA = 0;
-        public static double kP = 0.0;
+        public static double kS = 0.025;
+        public static double kV = 0.00021;
+        public static double kA = 0.00008;
+        public static double kP = 0.0004;
         public static double kI = 0;
         public static double kD = 0.0;
-        public static double kF = 0.11;
-        public static double KP_POS = 0;
+        public static double kG = 0.0435;
+        public static double KP_POS = 0.00013;
     }
-    public static double MAX_VEL = 360;
-    public static double MAX_ACCEL = 40;
+    public static double MAX_VEL = 1200;
+    public static double MAX_ACCEL = 800;
     public static double KP_POS = 0; // small correction kP for pose error
     double lastError = 0.0;
     double integral = 0.0;
+    public static double pidOutput;
     double lastPIDOutput = 0.0;
 
     // Shoot profile constants
     ElapsedTime shootTimer = new ElapsedTime();
     double shootDist = 0;
     final double FLOWER_VELOCITY = 180; // deg/sec
-    final double SHOOT_VELOCITY = 500;
-    final double SHOOT_ACCEL = 500;
+    public static double SHOOT_VELOCITY = 8000;
+    public static double SHOOT_ACCEL = 6000;
     double shoot_power = 1;
 
     private double degreesToTicks(double degrees) {
@@ -119,9 +120,13 @@ public class Launcher {
 //        launchMotor.setDirection(DcMotorEx.Direction.REVERSE);
         launchMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         launchMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-        launcherZeroPos = -180;
+        launcherZeroPos = 180; // 180
 
         targetAngle = REST_ANGLE;
+        launch_state = LAUNCH_STATE.REST;
+    }
+
+    public void toggleRest() {
         launch_state = LAUNCH_STATE.REST;
     }
 
@@ -154,7 +159,11 @@ public class Launcher {
         shoot_power = SHOOT_VELOCITY;
     }
 
-    public void runLauncher(double elapsedTime) {
+//    public void runLauncher(double elapsedTime) {
+//        launchMotor.setPower(pidOutput);
+//    }
+
+    public void runLauncher(double elapsedTime, double volts) {
 //        double targetPos = degreesToTicks(REST_ANGLE);
         double currentAngle = getCurrentAngle();
         double currentVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
@@ -186,7 +195,7 @@ public class Launcher {
         }
 
         double error = targetAngle - currentAngle;
-        double pidOutput = 1.0;
+        pidOutput = 0.0;
         double refVel = 0.0;
 
 //        if (launch_state == LAUNCH_STATE.SHOOT && !(shoot_power == FLOWER_VELOCITY) && error > 270) {
@@ -246,7 +255,10 @@ public class Launcher {
                     LAUNCHER_PID_COEFFS.KP_POS * posError;
         }
 
-        pidOutput += LAUNCHER_PID_COEFFS.kF * Math.sin(Math.toRadians(currentAngle % 360));
+        pidOutput += LAUNCHER_PID_COEFFS.kG * Math.sin(Math.toRadians(currentAngle % 360));
+
+        pidOutput *= 12.0 / volts;
+        pidOutput = Math.max(-1, Math.min(1, pidOutput));
 
         if (SLEW_PID) {
             pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
@@ -272,6 +284,8 @@ public class Launcher {
         packet.put("Current Angle", currentAngle);
         packet.put("Target Angle", targetAngle);
         packet.put("Ref Angle", refAngle);
+        packet.put("Shoot Ref Vel", shootRefVel);
+        packet.put("Shoot Ref Vel", shootDist);
         packet.put("Error", error);
         packet.put("PIDOutput", pidOutput);
         packet.put("launcher state", launch_state);

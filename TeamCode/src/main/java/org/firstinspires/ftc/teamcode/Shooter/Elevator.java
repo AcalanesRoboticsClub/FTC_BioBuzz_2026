@@ -19,14 +19,14 @@ public class Elevator {
     TouchSensor elevatorSwitch;
     public static boolean elevatorisUp = false;
     final double MAX_POWER = 0.5;
-    final double FLOWER_HEIGHT = 8.6; // actual is 9.4
+    final double FLOWER_HEIGHT = 9.2;
     static boolean SLEW_PID = true;
     static double SLEW_RATE = 0.1;
-    double MAX_HEIGHT = 8.6; // inches
+    double MAX_HEIGHT = 9.3; // inches
     double DIST_TOLERANCE = 1;
     public static double VEL_TOLERANCE = 0.01;
     final double NUM_TEETH = 10;
-    final double TICKS_PER_REV = 1607 * 9.875 * 8 / (25.4*10) * 8/7; // 357.7
+    final double TICKS_PER_REV = 1607 * 10 * 8 / (25.4 * 9.875) * 0.9;
     //
     final double GEAR_DIAMETER = 1.158;
     enum STATE {BOTTOM, TOP, FLOWER, MANUAL, STOP, HOLD_POS};
@@ -49,8 +49,8 @@ public class Elevator {
     ElapsedTime elevator_motion_timer = new ElapsedTime();
 
     // TUNING COEFFICIENTS
-    public static double MAX_VEL = 5;
-    public static double MAX_ACCEL = 3;
+    public static double MAX_VEL = 8;
+    public static double MAX_ACCEL = 8;
     @Config
     public static class ELEVATOR_PID_COEFFS {
         public static double kP = 0.01;
@@ -228,20 +228,20 @@ public class Elevator {
 
         packet.put("Switch pressed", hitBottom());
         packet.put("Elevator State", elevatorState.toString());
-        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
+//        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
         packet.put("Elevator Current position", currentPos);
-        packet.put("Elevator Reference position", refPos);
 //        packet.put("Elevator Reference position", refPos);
-        packet.put("Error", error);
-        packet.put("PID Output", pidOutput);
+//        packet.put("Elevator Reference position", refPos);
+//        packet.put("Error", error);
+//        packet.put("PID Output", pidOutput);
 
 //        packet.put("Slew PID On", SLEW_PID);
 //        packet.put("Slew rate", SLEW_RATE);
-
-        packet.put("kP", ELEVATOR_PID_COEFFS.kP);
-        packet.put("kI", ELEVATOR_PID_COEFFS.kI);
-        packet.put("kD", ELEVATOR_PID_COEFFS.kD);
-        packet.put("kF", ELEVATOR_PID_COEFFS.kG);
+//
+//        packet.put("kP", ELEVATOR_PID_COEFFS.kP);
+//        packet.put("kI", ELEVATOR_PID_COEFFS.kI);
+//        packet.put("kD", ELEVATOR_PID_COEFFS.kD);
+//        packet.put("kF", ELEVATOR_PID_COEFFS.kG);
 
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
