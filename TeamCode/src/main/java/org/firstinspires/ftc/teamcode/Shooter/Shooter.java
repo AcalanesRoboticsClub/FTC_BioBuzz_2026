@@ -22,7 +22,7 @@ public class Shooter { // will contain elevator, hood, and launcher
     }
 
     public void initialize() {
-        elevator.toggleTopPos();
+//        elevator.toggleTopPos(); // TODO: uncomment this
     }
 
     public void toggleFlowerMode() {
@@ -31,6 +31,7 @@ public class Shooter { // will contain elevator, hood, and launcher
             launcher.toggleShootPower();
         }
         else {
+            launchTypeToggle = LAUNCH_TYPE.FLOWER;
             elevator.toggleFlowerPos();
             hood.hoodFlower();
             launcher.toggleFlowerPower();
@@ -68,9 +69,13 @@ public class Shooter { // will contain elevator, hood, and launcher
         }
     }
 
-    public void updateShooter(double dt) {
+    public void updateShooter(double dt, double volts, boolean runLauncher) {
         hood.updateHood();
-        elevator.runElevator(dt);
+        elevator.runElevator(dt, volts);
+
+        if (runLauncher) {
+            launcher.runLauncher(dt, volts);
+        }
     }
 
    public static double[] motion_profile(double maxAccel, double maxVel, double distance, double elapsedTime) {

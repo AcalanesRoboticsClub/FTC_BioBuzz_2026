@@ -38,18 +38,18 @@ public class Launcher {
     static double SLEW_RATE = 0.15;
 
     // Angle constants
-    final double REST_ANGLE = 260.0;
+    final double REST_ANGLE = 270.0;
     final double SHOOT_POS_ANGLE = 50.0;
-    final double SHOOT_ANGLE = 360 * 2.5;
+    final double SHOOT_ANGLE = 360 * 2.75;
     final double FLOWER_ANGLE = 360 * 1.2;
 
     // Mechanism constants
     final double GEAR_RATIO = 10.0 / 24.0;
-    final double TICKS_PER_REV = 220.0; // gobilda - 357.7?
+    final double TICKS_PER_REV = 224.0; // gobilda - 357.7?
 
     // Tolerances
     public static double ANGLE_TOLERANCE_TO_SHOOT = 35;
-    double ANGLE_TOLERANCE_TO_REST = 30;
+    public static double ANGLE_TOLERANCE_TO_REST = 10;
     double targetAngle = 0;
 
     // STATES
@@ -68,23 +68,24 @@ public class Launcher {
     // Shooting profile values
     double shootRefVel = 0;
     double shootVelocity = 0;
-//    double filteredVel = 0; // TODO: add a filter to smooth motion
+    double filteredVel = 0; // TODO: change to kalman filter to smooth motion
+    public static double LAUNCH_VEL_FILTER_ALPHA = 0.3;
 
     // PID TUNING COEFFICIENTS
     @Config
     public static class LAUNCHER_PID_COEFFS {
-        public static double kS = 0.025;
-        public static double kV = 0.00021;
-        public static double kA = 0.00008;
-        public static double kP = 0.0004;
+        public static double kS = 0.0546;
+        public static double kV = 0.000123;
+        public static double kA = 0.00001;
+        public static double kP = 0.000;
         public static double kI = 0;
-        public static double kD = 0.0;
-        public static double kG = 0.0435;
-        public static double KP_POS = 0.00013;
+        public static double kD = 0.00003;
+        public static double kG = 0.0436;
+        public static double KP_POS = 0.012;
+        public static double KP_HOLD_POS = 0.012;
     }
     public static double MAX_VEL = 1200;
     public static double MAX_ACCEL = 800;
-    public static double KP_POS = 0; // small correction kP for pose error
     double lastError = 0.0;
     double integral = 0.0;
     public static double pidOutput;
@@ -93,7 +94,7 @@ public class Launcher {
     // Shoot profile constants
     ElapsedTime shootTimer = new ElapsedTime();
     double shootDist = 0;
-    final double FLOWER_VELOCITY = 180; // deg/sec
+    public static double FLOWER_VELOCITY = 400; // deg/sec
     public static double SHOOT_VELOCITY = 8000;
     public static double SHOOT_ACCEL = 6000;
     double shoot_power = 1;
@@ -120,10 +121,7 @@ public class Launcher {
 //        launchMotor.setDirection(DcMotorEx.Direction.REVERSE);
         launchMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         launchMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-        launcherZeroPos = 180; // 180
-
-        targetAngle = REST_ANGLE;
-        launch_state = LAUNCH_STATE.REST;
+        launcherZeroPos = 180;
     }
 
     public void toggleRest() {
@@ -153,45 +151,65 @@ public class Launcher {
 
     public void toggleFlowerPower() {
         shoot_power = FLOWER_VELOCITY;
+        shootRefVel = FLOWER_VELOCITY;
     }
 
     public void toggleShootPower() {
         shoot_power = SHOOT_VELOCITY;
+        shootRefVel = SHOOT_VELOCITY;
     }
 
-//    public void runLauncher(double elapsedTime) {
+    public void setUp() {
+        shootRefVel = SHOOT_VELOCITY;
+        targetAngle = REST_ANGLE;
+        launch_state = LAUNCH_STATE.REST;
+        startProfile(getCurrentAngle());
+    }
+
+    public void startProfile(double currentAngle) {
+        profileStartAngle = currentAngle;
+        profileTargetAngle = targetAngle;
+        profileDir = Math.signum(targetAngle - currentAngle);
+        launcher_motion_timer.reset();
+        integral = 0;
+        lastError = 0;
+        lastTargetAngle = targetAngle;
+    }
+
+    public void startShootProfile(double currentAngle) {
+        profileStartAngle = currentAngle;
+        profileTargetAngle = targetAngle;
+        profileDir = Math.signum(targetAngle - currentAngle);
+        integral = 0;
+        lastError = 0;
+        lastTargetAngle = targetAngle;
+        shootDist = targetAngle - currentAngle;
+        shootTimer.reset();
+    }
+
+//    public void runLauncher(double elapsedTime, double volts) {
 //        launchMotor.setPower(pidOutput);
 //    }
-
     public void runLauncher(double elapsedTime, double volts) {
 //        double targetPos = degreesToTicks(REST_ANGLE);
         double currentAngle = getCurrentAngle();
-        double currentVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
+//        double currentVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
+        double rawVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
+        filteredVel += LAUNCH_VEL_FILTER_ALPHA * (rawVel - filteredVel);
+        double currentVel = filteredVel;
 
         if (shootToggle) {
             if (shoot_power == FLOWER_VELOCITY) {
-                targetAngle = targetAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
+                targetAngle = currentAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
                 launch_state = LAUNCH_STATE.SHOOT;
-                shootRefVel = FLOWER_VELOCITY;
+                startShootProfile(currentAngle);
             }
             else {
                 targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
                 launch_state = LAUNCH_STATE.POSITION;
-                shootRefVel = SHOOT_VELOCITY;
+                startProfile(currentAngle);
             }
-            shootDist = targetAngle - currentAngle;
-            shootTimer.reset();
             shootToggle = false;
-        }
-
-        if (Math.abs(targetAngle - lastTargetAngle) > 0.01) {
-            profileStartAngle = currentAngle;
-            profileTargetAngle = targetAngle;
-            profileDir = Math.signum(targetAngle - currentAngle);
-            launcher_motion_timer.reset();
-            integral = 0;
-            lastError = 0;
-            lastTargetAngle = targetAngle;
         }
 
         double error = targetAngle - currentAngle;
@@ -207,6 +225,7 @@ public class Launcher {
         }
         else if (launch_state == LAUNCH_STATE.SHOOT) {
             double[] sp = Shooter.motion_profile(SHOOT_ACCEL, shootRefVel, shootDist, shootTimer.seconds());
+            refAngle = profileStartAngle + sp[0];
             refVel = sp[1];
             double refAcc = sp[2];
             double velError = refVel - currentVel;
@@ -214,7 +233,9 @@ public class Launcher {
             pidOutput = LAUNCHER_PID_COEFFS.kS * Math.signum(refVel) +
                     LAUNCHER_PID_COEFFS.kV * refVel +
                     LAUNCHER_PID_COEFFS.kA * refAcc +
-                    LAUNCHER_PID_COEFFS.kP * velError;
+                    LAUNCHER_PID_COEFFS.kP * velError +
+                    LAUNCHER_PID_COEFFS.KP_POS * (refAngle - currentAngle);
+            ;
         }
         else {
             // Motion profile
@@ -246,13 +267,18 @@ public class Launcher {
             double derivative = (velError - lastError) / elapsedTime;
             lastError = velError;
 
+            double pos_const = LAUNCHER_PID_COEFFS.KP_POS;
+            if (launch_state == LAUNCH_STATE.REST && posError < ANGLE_TOLERANCE_TO_REST) {
+                pos_const = LAUNCHER_PID_COEFFS.KP_HOLD_POS;
+            }
+
             pidOutput = LAUNCHER_PID_COEFFS.kS * Math.signum(refVel) +
                     LAUNCHER_PID_COEFFS.kV * refVel +
                     LAUNCHER_PID_COEFFS.kA * refAcc +
                     LAUNCHER_PID_COEFFS.kP * velError +
                     LAUNCHER_PID_COEFFS.kI * integral +
                     LAUNCHER_PID_COEFFS.kD * derivative +
-                    LAUNCHER_PID_COEFFS.KP_POS * posError;
+                    pos_const * posError;
         }
 
         pidOutput += LAUNCHER_PID_COEFFS.kG * Math.sin(Math.toRadians(currentAngle % 360));
@@ -260,9 +286,9 @@ public class Launcher {
         pidOutput *= 12.0 / volts;
         pidOutput = Math.max(-1, Math.min(1, pidOutput));
 
-        if (SLEW_PID) {
-            pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
-        }
+//        if (SLEW_PID) {
+//            pidOutput = Helpers.slew(SLEW_RATE, pidOutput, lastPIDOutput);
+//        }
         lastPIDOutput = pidOutput;
 
         launchMotor.setPower(pidOutput);
@@ -270,26 +296,27 @@ public class Launcher {
         if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == LAUNCH_STATE.POSITION) {
             targetAngle = targetAngle + (SHOOT_ANGLE - SHOOT_POS_ANGLE);
             launch_state = LAUNCH_STATE.SHOOT;
-            shootRefVel = SHOOT_VELOCITY;
-            shootDist = targetAngle - currentAngle;
-            shootTimer.reset();
+            startShootProfile(currentAngle);
 //            targetAngle = currentAngle + (SHOOT_ANGLE - (currentAngle % (360*3)));
         }
-        else if (Math.abs(error) < ANGLE_TOLERANCE_TO_REST && launch_state == LAUNCH_STATE.SHOOT) {
+        else if (shootTimer.seconds() > 0.1 && refVel < 25 && launch_state == LAUNCH_STATE.SHOOT) {
             launch_state = LAUNCH_STATE.REST;
             targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
+            startProfile(currentAngle);
         }
 
         TelemetryPacket packet = new TelemetryPacket();
-        packet.put("Current Angle", currentAngle);
-        packet.put("Target Angle", targetAngle);
-        packet.put("Ref Angle", refAngle);
-        packet.put("Shoot Ref Vel", shootRefVel);
-        packet.put("Shoot Ref Vel", shootDist);
-        packet.put("Error", error);
-        packet.put("PIDOutput", pidOutput);
+        packet.put("Current Angle (360)", currentAngle % 360);
+//        packet.put("Current Angle", currentAngle);
+//        packet.put("Target Angle", targetAngle);
+//        packet.put("Ref Angle", refAngle);
+//        packet.put("Ref Vel", refVel);
+        packet.put("current vel", currentVel);
+//        packet.put("Shoot Ref Dist", shootDist);
+//        packet.put("Error", error);
+//        packet.put("PIDOutput", pidOutput);
         packet.put("launcher state", launch_state);
-        packet.put("launcher velocity", ticksToDegrees(launchMotor.getVelocity()));
+//        packet.put("launcher velocity", ticksToDegrees(launchMotor.getVelocity()));
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
 
@@ -316,10 +343,9 @@ public class Launcher {
     public void shootState() { // force a shoot if the position PID doesn't fully complete
         double currentAngle = getCurrentAngle();
         launch_state = LAUNCH_STATE.SHOOT;
-        targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
-        shootDist = targetAngle - currentAngle;
-        shootTimer.reset();
-        shootRefVel = SHOOT_VELOCITY;
+        targetAngle = currentAngle + ((REST_ANGLE - (currentAngle % 360)) % 360.0 + 360);
+        shootToggle = false;
+        startShootProfile(currentAngle);
     }
 
 }

@@ -26,6 +26,7 @@ public class Robot {
     Servo ledIndicator;
 
     double timeForLauncherStart = 100;
+    boolean runLauncher = false;
 
     // Robot pose
     public static Pose robotPose;
@@ -89,15 +90,16 @@ public class Robot {
         timer.reset();
 
         // Delay for launcher to start to give time to flower servo
-        if (timeForLauncherStart <= 0) {
-            shooter.launcher.runLauncher(dt, volts);
+        if (timeForLauncherStart <= 0 && !runLauncher) {
+            shooter.launcher.setUp();
+            runLauncher = true;
         }
         else {
             timeForLauncherStart -= 2;
         }
 
         intake.runIntake();
-        shooter.updateShooter(dt);
+        shooter.updateShooter(dt, volts, runLauncher);
 
         TelemetryPacket packet = new TelemetryPacket();
 
@@ -112,7 +114,7 @@ public class Robot {
 //        packet.put("kP", Launcher.PID_COEFFS.kP);
 //        packet.put("kI", Launcher.PID_COEFFS.kI);
 //        packet.put("kD", Launcher.PID_COEFFS.kD);
-//        packet.put("kF", Launcher.PID_COEFFS.kF);
+        packet.put("FLOWER MODE", shooter.isFlowerMode());
 
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
