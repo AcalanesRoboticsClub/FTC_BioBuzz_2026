@@ -66,7 +66,7 @@ public class TeleOP extends LinearOpMode {
 
         waitForStart();
 
-        robot.initialize();
+        robot.deploy();
 
         if (isStopRequested()) return;
 
@@ -100,12 +100,12 @@ public class TeleOP extends LinearOpMode {
             if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
                 robot.shooter.launcher.toggleShoot();
             }
-            if (gamepad2.dpadRightWasPressed()) {
-                robot.shooter.launcher.shiftZeroPositionForward();
-            }
-            if (gamepad2.dpadLeftWasPressed()) {
-                robot.shooter.launcher.shiftZeroPositionBackward();
-            }
+//            if (gamepad2.dpadRightWasPressed()) {
+//                robot.shooter.launcher.shiftZeroPositionForward();
+//            }
+//            if (gamepad2.dpadLeftWasPressed()) {
+//                robot.shooter.launcher.shiftZeroPositionBackward();
+//            }
 //            telemetry.addData("Launch state: ", shooter.launcher.getCurrentState());
 
             if (gamepad2.backWasPressed()) {
@@ -118,14 +118,16 @@ public class TeleOP extends LinearOpMode {
 //            if (gamepad2.aWasPressed()) {
 //                intake.overrideIntake();
 //            }
-            if (gamepad1.x) {
+            if (gamepad1.x || gamepad2.x) {
                 robot.intake.spit();
             }
-            // TODO: add launcher spit button
-
-            if (gamepad2.xWasPressed()) {
-                robot.flower.toggleFlowerDescorer();
+            if (gamepad1.back || gamepad2.back) {
+                robot.shooter.launcher.spit();
             }
+
+//            if (gamepad2.xWasPressed()) {
+//                robot.flower.toggleFlowerDescorer();
+//            }
 
             // presets, will eventually also change elevator/launcher
             if (gamepad1.dpadUpWasPressed()) {

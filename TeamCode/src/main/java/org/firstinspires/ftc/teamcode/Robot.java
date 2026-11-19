@@ -58,8 +58,8 @@ public class Robot {
         voltTimer.reset();
     }
 
-    public void initialize() {
-        shooter.initialize();
+    public void deploy() {
+        shooter.deploy();
         flower.extendFlowerServo();
         flower.toggleFlowerDescorer();
     }
