@@ -21,8 +21,8 @@ public class Shooter { // will contain elevator, hood, and launcher
         elevator = new Elevator(hardwareMap);
     }
 
-    public void initialize() {
-//        elevator.toggleTopPos(); // TODO: uncomment this
+    public void deploy() {
+        elevator.toggleTopPos();
     }
 
     public void toggleFlowerMode() {
@@ -74,7 +74,7 @@ public class Shooter { // will contain elevator, hood, and launcher
         elevator.runElevator(dt, volts);
 
         if (runLauncher) {
-            launcher.runLauncher(dt, volts);
+            launcher.runLauncher(dt, volts, !elevator.hitBottom());
         }
     }
 
