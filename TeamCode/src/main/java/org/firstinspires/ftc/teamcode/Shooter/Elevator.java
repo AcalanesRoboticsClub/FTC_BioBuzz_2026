@@ -56,8 +56,8 @@ public class Elevator {
     // TUNING COEFFICIENTS
     public static double CREEP_POW = -0.01;
     public static double CREEP_HEIGHT = 3.4;
-    public static double MAX_VEL = 14;
-    public static double MAX_ACCEL = 14;
+    public static double MAX_VEL = 20;
+    public static double MAX_ACCEL = 18;
     @Config
     public static class ELEVATOR_PID_COEFFS {
         public static double kP = 0.023;
@@ -65,7 +65,7 @@ public class Elevator {
         public static double kD_DOWN = 0.0;
         public static double kI = 0;
         public static double kD = 0.003;
-        public static double kV = 0.055;
+        public static double kV = 0.052;
         public static double kA = 0.005;
         public static double kG = 0.1205; // .1628
         public static double kS = 0.2065; // 0.1667
