@@ -25,6 +25,7 @@ public class TestAuto extends LinearOpMode {
     DcMotor backLeftMotor;
     DcMotor frontRightMotor;
     DcMotor backRightMotor;
+    Servo ledIndicator;
 
     IMU imu;
     ElapsedTime timer = new ElapsedTime();
@@ -50,6 +51,8 @@ public class TestAuto extends LinearOpMode {
         elevator = new Elevator(hardwareMap);
         flower = new Flower(hardwareMap);
 
+        ledIndicator = hardwareMap.get(Servo.class, "led");
+
         frontLeftMotor = hardwareMap.dcMotor.get("frontLeft");
         backLeftMotor = hardwareMap.dcMotor.get("backLeft");
         frontRightMotor = hardwareMap.dcMotor.get("frontRight");
@@ -71,6 +74,13 @@ public class TestAuto extends LinearOpMode {
         waitForStart();
         timer.reset();
 
+<<<<<<<< HEAD:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/TestAuto.java
+========
+        elevator.toggleTopPos();
+        flower.extendFlowerServo();
+        flower.toggleFlowerDescorer();
+
+>>>>>>>> origin/master:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/RobotOP.java
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
@@ -112,6 +122,7 @@ public class TestAuto extends LinearOpMode {
 //            telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
 //            telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
 
+<<<<<<<< HEAD:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/TestAuto.java
 //            shooter.hood.hoodShootMidLow();
 //            shooter.launcher.toggleShoot();
 //
@@ -130,6 +141,129 @@ public class TestAuto extends LinearOpMode {
             backLeftMotor.setPower(0);
             frontRightMotor.setPower(0);
             backRightMotor.setPower(0);
+========
+            frontLeftMotor.setPower(frontLeftPower);
+            backLeftMotor.setPower(backLeftPower);
+            frontRightMotor.setPower(frontRightPower);
+            backRightMotor.setPower(backRightPower);
+
+            // Delay for launcher to start to give time to flower servo
+            if (timeForLauncherStart <= 0) {
+                shooter.launcher.runLauncher(dt);
+            }
+            else {
+                timeForLauncherStart -= 2;
+            }
+
+            if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
+                shooter.launcher.toggleShoot();
+            }
+            if (gamepad2.dpadRightWasPressed()) {
+                shooter.launcher.shiftZeroPositionForward();
+            }
+            if (gamepad2.dpadLeftWasPressed()) {
+                shooter.launcher.shiftZeroPositionBackward();
+            }
+//            telemetry.addData("Launch state: ", shooter.launcher.getCurrentState());
+
+            if (gamepad2.backWasPressed()) {
+                shooter.launcher.shootState();
+            }
+
+            intake.runIntake();
+            if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
+                intake.toggle();
+            }
+//            if (gamepad2.aWasPressed()) {
+//                intake.overrideIntake();
+//            }
+            if (gamepad1.x) {
+                intake.spit();
+            }
+
+            if (gamepad2.xWasPressed()) {
+                flower.toggleFlowerDescorer();
+            }
+
+            if (gamepad1.dpadUpWasPressed()) {
+//                shooter.hood.hoodShoot();
+                shooter.hood.hoodShootHigh();
+            }
+            if (gamepad1.dpadDownWasPressed()) {
+//                shooter.hood.hoodFlower();
+                shooter.hood.hoodShootLow();
+            }
+//            if (gamepad1.dpadLeftWasPressed()) {
+////                shooter.hood.hoodShoot();
+//                shooter.hood.hoodShootMidHigh();
+//            }
+//            if (gamepad1.dpadRightWasPressed()) {
+////                shooter.hood.hoodFlower();
+//                shooter.hood.hoodShootMidLow();
+//            }
+            if (gamepad2.dpadUpWasPressed()) {
+                shooter.hood.incPosition();
+            }
+            if (gamepad2.dpadDownWasPressed()) {
+                shooter.hood.decPosition();
+            }
+            shooter.hood.updateHood();
+
+            if (gamepad2.right_trigger > 0.5) {
+                elevator.runForward(gamepad2.right_trigger);
+            }
+            else if (gamepad2.left_trigger > 0.5) {
+                elevator.runBackward(gamepad2.left_trigger);
+            }
+            else {
+                elevator.rest();
+            }
+
+            if (gamepad1.rightBumperWasPressed() || gamepad2.rightBumperWasPressed()) {
+                elevator.toggleTopPos();
+            }
+            if (gamepad1.leftBumperWasPressed() || gamepad2.leftBumperWasPressed()) {
+                elevator.toggleBottomPos();
+            }
+            elevator.runElevator(dt);
+
+            // flower
+            if (gamepad1.yWasPressed() || gamepad2.yWasPressed()) {
+                shooter.launcher.toggleShootType();
+                if (shooter.launcher.isFlowerMode()) {
+                    elevator.toggleFlowerPos();
+                    shooter.hood.hoodFlower();
+                }
+            }
+
+            if(shooter.launcher.isFlowerMode()) {
+                ledIndicator.setPosition(0.5); // green
+            } else {
+                ledIndicator.setPosition(0.28); // red
+            }
+
+//            if (gamepad1.dpad_right) {
+//                shooter.launcher.launcherFoward();
+//            }
+//            if (gamepad1.dpad_left) {
+//                shooter.launcher.launcherForwardSlow();
+//            }
+
+            telemetry.addData("Flower state", shooter.launcher.isFlowerMode());
+            telemetry.addData("Hood pos", shooter.hood.getPos());
+            telemetry.update();
+
+            TelemetryPacket packet = new TelemetryPacket();
+            packet.put("launcher angle", shooter.launcher.getCurrentAngle());
+            packet.put("launcher ticks", shooter.launcher.getCurrentTicks());
+//            packet.put("launch angle", shooter.launcher.getCurrentAngle());
+//            packet.put("launch output", shooter.launcher.getOutput());
+//            packet.put("kP", shooter.launcher.PID_COEFFS.kP);
+//            packet.put("kI", shooter.launcher.PID_COEFFS.kI);
+//            packet.put("kD", shooter.launcher.PID_COEFFS.kD);
+//            packet.put("kF", shooter.launcher.PID_COEFFS.kF);
+            FtcDashboard.getInstance().sendTelemetryPacket(packet);
+>>>>>>>> origin/master:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/RobotOP.java
         }
     }
 }
