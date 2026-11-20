@@ -56,6 +56,8 @@ public class Launcher {
     // STATES
     public enum LAUNCH_STATE {REST, REST_ELEVATOR_UP, POSITION, SHOOT, SPIT};
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
+    public enum LAUNCH_TYPE {FLOWER, SHOOT};
+    public static LAUNCH_TYPE launchType = LAUNCH_TYPE.SHOOT;
     boolean shootToggle = false;
     boolean elevatorUpReadyForProfile = true;
 
@@ -69,7 +71,6 @@ public class Launcher {
 
     // Shooting profile values
     double shootRefVel = 0;
-    double shootVelocity = 0;
     double filteredVel = 0; // TODO: change to kalman filter to smooth motion
     public static double LAUNCH_VEL_FILTER_ALPHA = 0.3;
 
@@ -97,9 +98,12 @@ public class Launcher {
     ElapsedTime shootTimer = new ElapsedTime();
     double shootDist = 0;
     public static double FLOWER_VELOCITY = 200; // deg/sec
-    public static double SHOOT_VELOCITY = 2000;
-    public static double SHOOT_ACCEL = 10000;
-    double shoot_power = 1;
+    public static double shootVelocity = 2000;
+    public double profileShootVelocity = 2000; // during shot profile keep target velocity constant
+    public static double SHOOT_MAX_VELOCITY = 2200; // clamp max velocity
+    public static double FLOWER_SHOOT_ACCEL = 800;
+    public static double SHOOT_ACCEL_DIST = 180;
+    public static double SHOOT_CRUISE_DIST = 270;
 
     private double degreesToTicks(double degrees) {
         return (degrees * (TICKS_PER_REV * GEAR_RATIO / 360.0));
@@ -152,13 +156,17 @@ public class Launcher {
     }
 
     public void toggleFlowerPower() {
-        shoot_power = FLOWER_VELOCITY;
+        launchType = LAUNCH_TYPE.FLOWER;
         shootRefVel = FLOWER_VELOCITY;
     }
 
     public void toggleShootPower() {
-        shoot_power = SHOOT_VELOCITY;
-        shootRefVel = SHOOT_VELOCITY;
+        launchType = LAUNCH_TYPE.SHOOT;
+//        shootRefVel = Math.min(Math.abs(shootVelocity), SHOOT_MAX_VELOCITY);
+    }
+
+    public void setShootVelocity(double velocity) {
+        shootRefVel = Math.min(Math.abs(velocity), SHOOT_MAX_VELOCITY);
     }
 
     public void toggleNormalRest() {
@@ -170,7 +178,7 @@ public class Launcher {
     }
 
     public void setUp() {
-        shootRefVel = SHOOT_VELOCITY;
+        shootRefVel = shootVelocity;
         targetAngle = REST_ANGLE;
         launch_state = LAUNCH_STATE.REST;
         startProfile(getCurrentAngle());
@@ -194,13 +202,14 @@ public class Launcher {
         lastError = 0;
         lastTargetAngle = targetAngle;
         shootDist = targetAngle - currentAngle;
+        profileShootVelocity = shootVelocity;
         shootTimer.reset();
     }
 
-//    public void runLauncher(double elapsedTime, double volts) {
+    //    public void runLauncher(double elapsedTime, double volts) {
 //        launchMotor.setPower(pidOutput);
 //    }
-    public void runLauncher(double elapsedTime, double volts, boolean elevatorIsUp) {
+    public void updateLauncher(double elapsedTime, double volts, boolean elevatorIsUp) {
 //        double targetPos = degreesToTicks(REST_ANGLE);
         double currentAngle = getCurrentAngle();
 //        double currentVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
@@ -209,7 +218,7 @@ public class Launcher {
         double currentVel = filteredVel;
 
         if (shootToggle) {
-            if (shoot_power == FLOWER_VELOCITY) {
+            if (launchType == LAUNCH_TYPE.FLOWER) {
                 targetAngle = currentAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
                 launch_state = LAUNCH_STATE.SHOOT;
                 startShootProfile(currentAngle);
@@ -247,7 +256,18 @@ public class Launcher {
             launch_state = LAUNCH_STATE.REST;
         }
         else if (launch_state == LAUNCH_STATE.SHOOT) {
-            double[] sp = Shooter.motion_profile(SHOOT_ACCEL, shootRefVel, shootDist, shootTimer.seconds());
+            double v = shootRefVel;
+            double[] sp;
+
+            if (launchType == LAUNCH_TYPE.FLOWER) {
+                sp = Shooter.motion_profile(FLOWER_SHOOT_ACCEL, v, shootDist, shootTimer.seconds());
+            }
+            else {
+                double accel = v * v / (2 * SHOOT_ACCEL_DIST);
+                double total_dist = 2 * SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST;
+                sp = Shooter.motion_profile(accel, v, total_dist, shootTimer.seconds());
+            }
+
             refAngle = profileStartAngle + sp[0];
             refVel = sp[1];
             double refAcc = sp[2];
@@ -317,10 +337,9 @@ public class Launcher {
         launchMotor.setPower(pidOutput);
 
         if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == LAUNCH_STATE.POSITION) {
-            targetAngle = targetAngle + (SHOOT_ANGLE - SHOOT_POS_ANGLE);
+            targetAngle = targetAngle + (SHOOT_ACCEL_DIST*2 + SHOOT_CRUISE_DIST);
             launch_state = LAUNCH_STATE.SHOOT;
             startShootProfile(currentAngle);
-//            targetAngle = currentAngle + (SHOOT_ANGLE - (currentAngle % (360*3)));
         }
         else if (shootTimer.seconds() > 0.1 && refVel < 25 && launch_state == LAUNCH_STATE.SHOOT) {
             launch_state = LAUNCH_STATE.REST;
@@ -339,7 +358,7 @@ public class Launcher {
 //        packet.put("Shoot Ref Dist", shootDist);
 //        packet.put("Error", error);
 //        packet.put("PIDOutput", pidOutput);
-        packet.put("shoot velocity", SHOOT_VELOCITY);
+        packet.put("shoot velocity", shootVelocity);
         packet.put("launcher state", launch_state);
 //        packet.put("launcher velocity", ticksToDegrees(launchMotor.getVelocity()));
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
