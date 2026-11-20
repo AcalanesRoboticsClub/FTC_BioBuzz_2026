@@ -118,8 +118,11 @@ public class TeleOP extends LinearOpMode {
 //            if (gamepad2.aWasPressed()) {
 //                intake.overrideIntake();
 //            }
-            if (gamepad1.x || gamepad2.x) {
-                robot.intake.spit();
+//            if (gamepad1.x || gamepad2.x) {
+//                robot.intake.spit();
+//            }
+            if (gamepad1.xWasPressed() || gamepad1.xWasPressed()) {
+                robot.shooter.launcher.toggleShoot();
             }
             if (gamepad1.back || gamepad2.back) {
                 robot.shooter.launcher.spit();
@@ -145,9 +148,15 @@ public class TeleOP extends LinearOpMode {
 //                shooter.hood.hoodShootMidLow();
 //            }
             if (gamepad2.dpadUpWasPressed()) {
-                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.INC);
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.INC_SMALL);
             }
             if (gamepad2.dpadDownWasPressed()) {
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.DEC_SMALL);
+            }
+            if (gamepad2.dpadRightWasPressed()) {
+                robot.shooter.changeHoodPos(Shooter.HOOD_STATE.INC);
+            }
+            if (gamepad2.dpadLeftWasPressed()) {
                 robot.shooter.changeHoodPos(Shooter.HOOD_STATE.DEC);
             }
 

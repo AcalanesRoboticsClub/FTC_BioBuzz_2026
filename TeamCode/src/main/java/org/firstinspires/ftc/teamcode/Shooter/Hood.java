@@ -42,6 +42,14 @@ public class Hood {
         position = 0.5;
     }
 
+    public void incPosition_small() {
+        position += 0.01;
+    }
+
+    public void decPosition_small() {
+        position -= 0.01;
+    }
+
     public void incPosition() {
         position += 0.1;
     }

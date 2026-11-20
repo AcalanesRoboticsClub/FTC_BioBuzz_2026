@@ -19,10 +19,10 @@ public class Elevator {
     TouchSensor elevatorSwitch;
     public static boolean elevatorisUp = false;
     final double MAX_POWER = 0.5;
-    public static double FLOWER_HEIGHT = 9.05;
+    public static double FLOWER_HEIGHT = 9.1;
     static boolean SLEW_PID = true;
     static double SLEW_RATE = 0.1;
-    public static double MAX_HEIGHT = 9.3; // inches
+    public static double MAX_HEIGHT = 9.2; // inches
     double DIST_TOLERANCE = 0.7;
     public static double VEL_TOLERANCE = 0.01;
     final double NUM_TEETH = 10;
@@ -138,6 +138,10 @@ public class Elevator {
 
     public void toggleFlowerPos() {
         elevatorState = STATE.FLOWER;
+    }
+
+    public boolean movingDown() {
+        return (elevatorMotor.getPower() < 0);
     }
 
     public void runElevator2(double elapsedTime, double volts) {
@@ -300,14 +304,14 @@ public class Elevator {
 
         packet.put("Switch pressed", hitBottom());
         packet.put("Elevator State", elevatorState.toString());
-        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
+//        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
         packet.put("Elevator Current position", currentPos);
-        packet.put("Elevator Reference position", refPos);
-        packet.put("Elevator Reference velocity", refVel);
-        packet.put("Elevator current velocity", currentVel);
-        packet.put("Error", error);
-        packet.put("PID Output", pidOutput);
-        packet.put("Target position", profileTarget);
+//        packet.put("Elevator Reference position", refPos);
+//        packet.put("Elevator Reference velocity", refVel);
+//        packet.put("Elevator current velocity", currentVel);
+//        packet.put("Error", error);
+//        packet.put("PID Output", pidOutput);
+//        packet.put("Target position", profileTarget);
 
 //        packet.put("Slew PID On", SLEW_PID);
 //        packet.put("Slew rate", SLEW_RATE);

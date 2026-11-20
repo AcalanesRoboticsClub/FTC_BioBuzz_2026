@@ -9,7 +9,7 @@ public class Shooter { // will contain elevator, hood, and launcher
     public Launcher launcher;
     public Elevator elevator;
 
-    public enum HOOD_STATE {HIGH, LOW, INC, DEC};
+    public enum HOOD_STATE {HIGH, LOW, INC, DEC, INC_SMALL, DEC_SMALL};
     public static HOOD_STATE hood_state = HOOD_STATE.LOW;
 
     public enum LAUNCH_TYPE {FLOWER, SHOOT};
@@ -53,6 +53,12 @@ public class Shooter { // will contain elevator, hood, and launcher
         if (hood_state == HOOD_STATE.LOW) {
             hood.hoodShootLow();
         }
+        if (hood_state == HOOD_STATE.INC_SMALL) {
+            hood.incPosition_small();
+        }
+        if (hood_state == HOOD_STATE.DEC_SMALL) {
+            hood.decPosition_small();
+        }
 //            if (state == HOOD_STATE.MIDHIGH) {
 ////                shooter.hood.hoodShoot();
 //                shooter.hood.hoodShootMidHigh();
@@ -72,6 +78,10 @@ public class Shooter { // will contain elevator, hood, and launcher
     public void updateShooter(double dt, double volts, boolean runLauncher) {
         hood.updateHood();
         elevator.runElevator(dt, volts);
+
+        if (elevator.movingDown()) {
+            launcher.toggleNormalRest();
+        }
 
         if (runLauncher) {
             launcher.runLauncher(dt, volts, !elevator.hitBottom());
