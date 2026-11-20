@@ -22,6 +22,8 @@ public class Hood {
         return hoodServo.getPosition();
     }
 
+    public void setPos(double pos) { position = pos; }
+
     public void hoodFlower() {
         position = 0.8;
     }

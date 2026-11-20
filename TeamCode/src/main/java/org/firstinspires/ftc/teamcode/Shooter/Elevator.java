@@ -29,9 +29,10 @@ public class Elevator {
     final double TICKS_PER_REV = 537.7; // 1607 * 10 * 8 / (25.4 * 9.875) * 0.9;
     // 538.8
     final double GEAR_DIAMETER = 1.158;
-    enum STATE {BOTTOM, TOP, FLOWER, MANUAL, STOP, HOLD_POS, CREEP};
+    enum STATE {BOTTOM, TOP, FLOWER, GO_TO_POS, MANUAL, STOP, HOLD_POS, CREEP};
     STATE elevatorState = STATE.STOP;
     STATE last_state = STATE.STOP;
+    double target_height = 0;
 
     // PID values
     double integral = 0.0;
@@ -154,7 +155,7 @@ public class Elevator {
 
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
-    public void runElevator(double elapsedTime, double volts) {
+    public void updateElevator(double elapsedTime, double volts) {
         double currentPos = ticksToDist(elevatorMotor.getCurrentPosition());
         double rawVel = ticksToVel(elevatorMotor.getVelocity(), elevatorMotor.getCurrentPosition());
         filteredVel += ELEVATOR_VEL_FILTER_ALPHA * (rawVel - filteredVel);
@@ -179,7 +180,10 @@ public class Elevator {
 
         // If change state, start motion profile
         if (elevatorState != last_state) {
-            if (elevatorState == STATE.BOTTOM) {
+            if (elevatorState == STATE.GO_TO_POS) {
+                profileTarget = target_height;
+            }
+            else if (elevatorState == STATE.BOTTOM) {
                 profileTarget = CREEP_HEIGHT;
             }
             else if (elevatorState == STATE.FLOWER) {
@@ -324,8 +328,8 @@ public class Elevator {
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
 
-    public void goToPos() {
-        // go to pos
+    public void goToPos(double h) {
+        target_height = h;
     }
 
     public void runForward(double value) {

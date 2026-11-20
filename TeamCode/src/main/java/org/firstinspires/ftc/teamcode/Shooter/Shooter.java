@@ -75,16 +75,34 @@ public class Shooter { // will contain elevator, hood, and launcher
         }
     }
 
+    public void calculateShoot() {
+        launcher.setShootVelocity(2000);
+        hood.setPos(0.22);
+        elevator.goToPos(0);
+    }
+
+    public void calculateShoot(double numPollen, double numNectar) {
+        launcher.setShootVelocity(2000);
+        hood.setPos(0.22);
+        elevator.goToPos(0);
+    }
+
+    public void calculateShoot(double numPollen, double numNectar, double pose) {
+        launcher.setShootVelocity(2000);
+        hood.setPos(0.22);
+        elevator.goToPos(0);
+    }
+
     public void updateShooter(double dt, double volts, boolean runLauncher) {
         hood.updateHood();
-        elevator.runElevator(dt, volts);
+        elevator.updateElevator(dt, volts);
 
         if (elevator.movingDown()) {
             launcher.toggleNormalRest();
         }
 
         if (runLauncher) {
-            launcher.runLauncher(dt, volts, !elevator.hitBottom());
+            launcher.updateLauncher(dt, volts, !elevator.hitBottom());
         }
     }
 
