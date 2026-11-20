@@ -54,10 +54,10 @@ public class Launcher {
     double targetAngle = 0;
 
     // STATES
-    public enum LAUNCH_STATE {REST, POSITION, SHOOT, SPIT};
+    public enum LAUNCH_STATE {REST, REST_ELEVATOR_UP, POSITION, SHOOT, SPIT};
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
     boolean shootToggle = false;
-    boolean elevatorUpProfile = false;
+    boolean elevatorUpReadyForProfile = true;
 
     // Profile values
     double lastTargetAngle = 0;
@@ -97,8 +97,8 @@ public class Launcher {
     ElapsedTime shootTimer = new ElapsedTime();
     double shootDist = 0;
     public static double FLOWER_VELOCITY = 200; // deg/sec
-    public static double SHOOT_VELOCITY = 15000;
-    public static double SHOOT_ACCEL = 12000;
+    public static double SHOOT_VELOCITY = 2000;
+    public static double SHOOT_ACCEL = 10000;
     double shoot_power = 1;
 
     private double degreesToTicks(double degrees) {
@@ -161,6 +161,14 @@ public class Launcher {
         shootRefVel = SHOOT_VELOCITY;
     }
 
+    public void toggleNormalRest() {
+        double currentAngle = getCurrentAngle();
+        targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
+        startProfile(currentAngle);
+        launch_state = LAUNCH_STATE.REST;
+        elevatorUpReadyForProfile = true;
+    }
+
     public void setUp() {
         shootRefVel = SHOOT_VELOCITY;
         targetAngle = REST_ANGLE;
@@ -214,13 +222,17 @@ public class Launcher {
             shootToggle = false;
         }
 
-        if (elevatorIsUp && !elevatorUpProfile && launch_state == LAUNCH_STATE.REST) {
+        if (elevatorIsUp && elevatorUpReadyForProfile && launch_state == LAUNCH_STATE.REST) {
+            launch_state = LAUNCH_STATE.REST_ELEVATOR_UP;
             targetAngle = currentAngle + (REST_UP_ANGLE - (currentAngle % 360));
             startProfile(currentAngle);
-            elevatorUpProfile = true;
+            elevatorUpReadyForProfile = false;
         }
         else if (!elevatorIsUp) {
-            elevatorUpProfile = false;
+            if (launch_state == LAUNCH_STATE.REST_ELEVATOR_UP) {
+                toggleNormalRest();
+            }
+            elevatorUpReadyForProfile = true;
         }
 
         double error = targetAngle - currentAngle;
@@ -314,18 +326,20 @@ public class Launcher {
             launch_state = LAUNCH_STATE.REST;
             targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
             startProfile(currentAngle);
+            elevatorUpReadyForProfile = false;
         }
 
         TelemetryPacket packet = new TelemetryPacket();
-        packet.put("Current Angle (360)", currentAngle % 360);
-        packet.put("Current Angle", currentAngle);
-        packet.put("Target Angle", targetAngle);
+//        packet.put("Current Angle (360)", currentAngle % 360);
+//        packet.put("Current Angle", currentAngle);
+//        packet.put("Target Angle", targetAngle);
         packet.put("Ref Angle", refAngle);
         packet.put("Ref Vel", refVel);
         packet.put("current vel", currentVel);
-        packet.put("Shoot Ref Dist", shootDist);
-        packet.put("Error", error);
-        packet.put("PIDOutput", pidOutput);
+//        packet.put("Shoot Ref Dist", shootDist);
+//        packet.put("Error", error);
+//        packet.put("PIDOutput", pidOutput);
+        packet.put("shoot velocity", SHOOT_VELOCITY);
         packet.put("launcher state", launch_state);
 //        packet.put("launcher velocity", ticksToDegrees(launchMotor.getVelocity()));
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
