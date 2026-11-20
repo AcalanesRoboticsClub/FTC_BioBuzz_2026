@@ -15,6 +15,8 @@ public class Shooter { // will contain elevator, hood, and launcher
     public enum LAUNCH_TYPE {FLOWER, SHOOT};
     public static LAUNCH_TYPE launchTypeToggle = LAUNCH_TYPE.SHOOT;
 
+    double timeToElevatorDown = 10;
+
     public Shooter(HardwareMap hardwareMap) {
         hood = new Hood(hardwareMap);
         launcher = new Launcher(hardwareMap);
@@ -22,7 +24,7 @@ public class Shooter { // will contain elevator, hood, and launcher
     }
 
     public void deploy() {
-        elevator.toggleTopPos();
+        elevator.goToPos(3);
     }
 
     public void toggleFlowerMode() {
@@ -94,9 +96,18 @@ public class Shooter { // will contain elevator, hood, and launcher
     }
 
     public void updateShooter(double dt, double volts, boolean runLauncher) {
+        // Move elevator down after it moves slightly up on deploy
+        if (timeToElevatorDown < 0) {
+            elevator.toggleBottomPos();
+        }
+        else {
+            timeToElevatorDown -= dt;
+        }
+
         hood.updateHood();
         elevator.updateElevator(dt, volts);
 
+        // When elevator is movinng down, move launcher to normal resting position
         if (elevator.movingDown()) {
             launcher.toggleNormalRest();
         }
