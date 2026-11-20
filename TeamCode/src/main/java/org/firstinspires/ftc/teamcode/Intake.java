@@ -34,7 +34,7 @@ public class Intake {
         }
     }
 
-    public void runIntake() {
+    public void updateIntake() {
         if (intakeToggle == STATE.SPIT) {
             intakeMotor.setPower(-1);
             intakeToggle = STATE.REST;

@@ -182,7 +182,7 @@ public class TeleOP extends LinearOpMode {
                 robot.toggleFlower();
             }
 
-            robot.runMechanisms();
+            robot.update();
 
             telemetry.addData("Flower state", robot.shooter.isFlowerMode());
             telemetry.addData("Hood pos", robot.shooter.hood.getPos());

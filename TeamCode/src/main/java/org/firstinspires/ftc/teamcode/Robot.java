@@ -80,7 +80,7 @@ public class Robot {
         intake.spit();
     }
 
-    public void runMechanisms() {
+    public void update() {
         if (voltTimer.seconds() > 0.5) {
             volts = vs.getVoltage();
             voltTimer.reset();
@@ -98,7 +98,7 @@ public class Robot {
             timeForLauncherStart -= 2;
         }
 
-        intake.runIntake();
+        intake.updateIntake();
         shooter.updateShooter(dt, volts, runLauncher);
 
         TelemetryPacket packet = new TelemetryPacket();
