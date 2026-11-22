@@ -2,28 +2,14 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.api.PoseFactory;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
-import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
-import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.teamcode.Intake;
-import org.firstinspires.ftc.teamcode.Shooter.Hood;
-import org.firstinspires.ftc.teamcode.Shooter.Launcher;
 import org.firstinspires.ftc.teamcode.Shooter.Shooter;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
@@ -98,7 +84,7 @@ public class TeleOP extends LinearOpMode {
 //            backRightMotor.setPower(backRightPower);
 
             if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
-                robot.shooter.launcher.toggleShoot();
+                robot.shooter.paddle.toggleShoot();
             }
 //            if (gamepad2.dpadRightWasPressed()) {
 //                robot.shooter.launcher.shiftZeroPositionForward();
@@ -109,7 +95,7 @@ public class TeleOP extends LinearOpMode {
 //            telemetry.addData("Launch state: ", shooter.launcher.getCurrentState());
 
             if (gamepad2.backWasPressed()) {
-                robot.shooter.launcher.shootState();
+                robot.shooter.paddle.shootState();
             }
 
             if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
@@ -122,10 +108,10 @@ public class TeleOP extends LinearOpMode {
 //                robot.intake.spit();
 //            }
             if (gamepad1.xWasPressed() || gamepad1.xWasPressed()) {
-                robot.shooter.launcher.toggleShoot();
+                robot.shooter.paddle.toggleShoot();
             }
             if (gamepad1.back || gamepad2.back) {
-                robot.shooter.launcher.spit();
+                robot.shooter.paddle.spit();
             }
 
 //            if (gamepad2.xWasPressed()) {
@@ -189,8 +175,8 @@ public class TeleOP extends LinearOpMode {
             telemetry.update();
 
             TelemetryPacket packet = new TelemetryPacket();
-            packet.put("launcher angle", robot.shooter.launcher.getCurrentAngle());
-            packet.put("launcher ticks", robot.shooter.launcher.getCurrentTicks());
+            packet.put("paddle angle", robot.shooter.paddle.getCurrentAngle());
+            packet.put("paddle ticks", robot.shooter.paddle.getCurrentTicks());
 //            packet.put("launch angle", shooter.launcher.getCurrentAngle());
 //            packet.put("launch output", shooter.launcher.getOutput());
 //            packet.put("kP", shooter.launcher.PID_COEFFS.kP);

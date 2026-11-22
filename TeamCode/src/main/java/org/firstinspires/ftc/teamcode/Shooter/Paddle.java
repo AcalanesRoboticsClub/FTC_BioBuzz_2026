@@ -2,44 +2,30 @@ package org.firstinspires.ftc.teamcode.Shooter;
 
 //import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.IMU;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.PIDCoefficients;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 //import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
-import org.firstinspires.ftc.teamcode.Helpers;
-import org.firstinspires.ftc.teamcode.Robot;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
-import com.bylazar.ftcontrol.panels.Panels;
-import com.bylazar.ftcontrol.panels.integration.TelemetryManager;
-
 @Config
-public class Launcher {
-    DcMotorEx launchMotor;
+public class Paddle {
+    DcMotorEx paddleMotor;
 
     final double NUDGE_ZERO_AMOUNT = 1;
-    double launcherZeroPos = 0.0;
+    double paddleZeroPos = 0.0;
 
     // Acceleration limit
     static boolean SLEW_PID = false;
     static double SLEW_RATE = 0.15;
 
     // Angle constants
-    final double REST_ANGLE = 270.0;
-    final double REST_UP_ANGLE = 315.0;
+    final double REST_ANGLE = 270.0; // help guide objects into sleeve
+    final double REST_UP_ANGLE = 315.0; // prevent objects from falling out
     final double SHOOT_POS_ANGLE = 50.0;
     final double SHOOT_ANGLE = 360 * 2.75;
     final double FLOWER_ANGLE = 360 * 1.2;
@@ -54,7 +40,12 @@ public class Launcher {
     double targetAngle = 0;
 
     // STATES
-    public enum LAUNCH_STATE {REST, REST_ELEVATOR_UP, POSITION, SHOOT, SPIT};
+    public enum LAUNCH_STATE {
+        REST, // normal rest position
+        REST_ELEVATOR_UP, // rest position when elevator is up
+        POSITION, // move backwards a position to give shoot profile more time to get up to speed
+        SHOOT, // shoot (either flower or regular shoot)
+        SPIT}; // reverse direction to spit out game objects
     public static LAUNCH_STATE launch_state = LAUNCH_STATE.REST;
     public enum LAUNCH_TYPE {FLOWER, SHOOT};
     public static LAUNCH_TYPE launchType = LAUNCH_TYPE.SHOOT;
@@ -67,16 +58,20 @@ public class Launcher {
     double profileTargetAngle = 0;
     double profileDir = 1;
     double refAngle = 0;
-    ElapsedTime launcher_motion_timer = new ElapsedTime();
+    ElapsedTime paddle_motion_timer = new ElapsedTime();
 
     // Shooting profile values
     double shootRefVel = 0;
     double filteredVel = 0; // TODO: change to kalman filter to smooth motion
     public static double LAUNCH_VEL_FILTER_ALPHA = 0.3;
+    ElapsedTime shootTimer = new ElapsedTime();
+    double shootDist = 0;
+    public static double shootVelocity = 2000;
+    public double profileShootVelocity = 2000; // during shot profile keep target velocity constant
 
     // PID TUNING COEFFICIENTS
     @Config
-    public static class LAUNCHER_PID_COEFFS {
+    public static class PADDLE_PID_COEFFS {
         public static double kS = 0.0546;
         public static double kV = 0.000123;
         public static double kA = 0.00005;
@@ -87,88 +82,92 @@ public class Launcher {
         public static double KP_POS = 0.01;
         public static double KP_HOLD_POS = 0.008;
     }
-    public static double MAX_VEL = 1200;
-    public static double MAX_ACCEL = 800;
     double lastError = 0.0;
     double integral = 0.0;
     public static double pidOutput;
     double lastPIDOutput = 0.0;
 
+    // Profile constants
+    public static double MAX_VEL = 1200;
+    public static double MAX_ACCEL = 800;
+
     // Shoot profile constants
-    ElapsedTime shootTimer = new ElapsedTime();
-    double shootDist = 0;
     public static double FLOWER_VELOCITY = 200; // deg/sec
-    public static double shootVelocity = 2000;
-    public double profileShootVelocity = 2000; // during shot profile keep target velocity constant
     public static double SHOOT_MAX_VELOCITY = 2200; // clamp max velocity
     public static double FLOWER_SHOOT_ACCEL = 800;
     public static double SHOOT_ACCEL_DIST = 180;
     public static double SHOOT_CRUISE_DIST = 270;
 
+    /**
+     * converts from degrees to ticks
+     * @param degrees degrees paddle has rotated
+     * @return ticks motor has moved
+     */
     private double degreesToTicks(double degrees) {
         return (degrees * (TICKS_PER_REV * GEAR_RATIO / 360.0));
     }
 
+    /**
+     * converts ticks to degrees
+     * @param ticks number of ticks motor has moved
+     * @return degrees rotated
+     */
     private double ticksToDegrees(double ticks) {
 //        double degrees = (ticks * 360.0 / (TICKS_PER_REV * GEAR_RATIO));
-        double degrees = (ticks * 360.0 / (TICKS_PER_REV)) + launcherZeroPos;
+        double degrees = (ticks * 360.0 / (TICKS_PER_REV)) + paddleZeroPos;
 //        if (degrees < 0) {
 //            degrees += 360.0;
 //        }
         return degrees;
     }
 
+    /**
+     * Gets velocity of launcher in deg/sec
+     * @param ticksPerSec velocity in ticks/sec
+     * @return velocity in deg/sec
+     */
     private double ticksPerSecToDegPerSec(double ticksPerSec) {
         return ticksPerSec * 360.0 / TICKS_PER_REV;
     }
 
-    public Launcher(HardwareMap hardwareMap) {
-        launchMotor = hardwareMap.get(DcMotorEx.class, "launchMotor");
-//        launchMotor.setDirection(DcMotorEx.Direction.REVERSE);
-        launchMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-        launchMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-        launcherZeroPos = 180;
+    public Paddle(HardwareMap hardwareMap) {
+        paddleMotor = hardwareMap.get(DcMotorEx.class, "launchMotor");
+//        paddleMotor.setDirection(DcMotorEx.Direction.REVERSE);
+        paddleMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        paddleMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        paddleZeroPos = 180; // zero position is straight up
     }
 
+    /*
+     * Getter functions
+     */
+    public double getCurrentAngle() { // get angle
+        return ticksToDegrees(paddleMotor.getCurrentPosition());
+    }
+    public double getCurrentTicks() { // get ticks
+        return paddleMotor.getCurrentPosition();
+    }
+    public double getOutput() { // get power output
+        return paddleMotor.getPower();
+    }
+
+    /*
+     * Toggles paddle states
+     */
     public void toggleRest() {
         launch_state = LAUNCH_STATE.REST;
     }
-
-    public double getCurrentAngle() {
-        return ticksToDegrees(launchMotor.getCurrentPosition());
-    }
-
-    public double getCurrentTicks() {
-        return launchMotor.getCurrentPosition();
-    }
-
-    public double getOutput() {
-        return launchMotor.getPower();
-    }
-
     public void toggleShoot() {
         shootToggle = true;
     }
-
     public void spit() {
         launch_state = LAUNCH_STATE.SPIT;
         shootToggle = false;
     }
 
-    public void toggleFlowerPower() {
-        launchType = LAUNCH_TYPE.FLOWER;
-        shootRefVel = FLOWER_VELOCITY;
-    }
-
-    public void toggleShootPower() {
-        launchType = LAUNCH_TYPE.SHOOT;
-//        shootRefVel = Math.min(Math.abs(shootVelocity), SHOOT_MAX_VELOCITY);
-    }
-
-    public void setShootVelocity(double velocity) {
-        shootRefVel = Math.min(Math.abs(velocity), SHOOT_MAX_VELOCITY);
-    }
-
+    /**
+     * Starts profile to move back to normal resting position (270 degrees)
+     */
     public void toggleNormalRest() {
         double currentAngle = getCurrentAngle();
         targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
@@ -177,27 +176,58 @@ public class Launcher {
         elevatorUpReadyForProfile = true;
     }
 
-    public void setUp() {
+    /*
+     * Toggles paddle velocities
+     */
+    public void toggleFlowerVelocity() {
+        launchType = LAUNCH_TYPE.FLOWER;
+        shootRefVel = FLOWER_VELOCITY;
+    }
+    public void toggleShootVelocity() {
+        launchType = LAUNCH_TYPE.SHOOT;
+//        shootRefVel = Math.min(Math.abs(shootVelocity), SHOOT_MAX_VELOCITY);
+    }
+
+    /**
+     * Sets shoot velocity
+     * @param velocity velocity (calculated in shooter with setShootProfile)
+     */
+    public void setShootVelocity(double velocity) {
+        shootRefVel = Math.min(Math.abs(velocity), SHOOT_MAX_VELOCITY);
+    }
+
+    /**
+     * At start of match (after a delay), moves from upright position to rest position
+     */
+    public void deploy() {
         shootRefVel = shootVelocity;
         targetAngle = REST_ANGLE;
         launch_state = LAUNCH_STATE.REST;
         startProfile(getCurrentAngle());
     }
 
+    /**
+     * Starts motion profile for position PID
+     * @param currentAngle angle paddle is currently at
+     */
     public void startProfile(double currentAngle) {
         profileStartAngle = currentAngle;
         profileTargetAngle = targetAngle;
-        profileDir = Math.signum(targetAngle - currentAngle);
-        launcher_motion_timer.reset();
+        profileDir = Math.signum(targetAngle - currentAngle); // moving forward or backward?
+        paddle_motion_timer.reset();
         integral = 0;
         lastError = 0;
         lastTargetAngle = targetAngle;
     }
 
+    /**
+     * Starts profile to shoot using velocity PID
+     * @param currentAngle angle paddle is currently at
+     */
     public void startShootProfile(double currentAngle) {
         profileStartAngle = currentAngle;
         profileTargetAngle = targetAngle;
-        profileDir = Math.signum(targetAngle - currentAngle);
+        profileDir = Math.signum(targetAngle - currentAngle); // direction of motion
         integral = 0;
         lastError = 0;
         lastTargetAngle = targetAngle;
@@ -206,23 +236,32 @@ public class Launcher {
         shootTimer.reset();
     }
 
-    //    public void runLauncher(double elapsedTime, double volts) {
-//        launchMotor.setPower(pidOutput);
+    //    public void runPaddle(double elapsedTime, double volts) {
+//        paddleMotor.setPower(pidOutput);
 //    }
-    public void updateLauncher(double elapsedTime, double volts, boolean elevatorIsUp) {
-//        double targetPos = degreesToTicks(REST_ANGLE);
+
+    /**
+     * Update function - uses states to move and shoot using motion profiles
+     * @param elapsedTime time since last function call
+     * @param volts battery voltage
+     * @param elevatorIsUp elevator is above the ground
+     */
+    public void updatePaddle(double elapsedTime, double volts, boolean elevatorIsUp) {
+        // Get current angle and velocity (velocity uses low-pass filter to smooth out motion)
         double currentAngle = getCurrentAngle();
-//        double currentVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
-        double rawVel = ticksPerSecToDegPerSec(launchMotor.getVelocity());
+        double rawVel = ticksPerSecToDegPerSec(paddleMotor.getVelocity());
         filteredVel += LAUNCH_VEL_FILTER_ALPHA * (rawVel - filteredVel);
         double currentVel = filteredVel;
 
+        // Joystick button pressed to toggle shoot and start profile
         if (shootToggle) {
+            // For flower immediately shoot
             if (launchType == LAUNCH_TYPE.FLOWER) {
                 targetAngle = currentAngle + (FLOWER_ANGLE - SHOOT_POS_ANGLE);
                 launch_state = LAUNCH_STATE.SHOOT;
                 startShootProfile(currentAngle);
             }
+            // For normal shoot, first go to POSITION state and spin backwards before shooting
             else {
                 targetAngle = currentAngle - (((currentAngle % 360.0) - SHOOT_POS_ANGLE));
                 launch_state = LAUNCH_STATE.POSITION;
@@ -231,12 +270,14 @@ public class Launcher {
             shootToggle = false;
         }
 
+        // When elevator is moved up, move paddle down to keep game objects in
         if (elevatorIsUp && elevatorUpReadyForProfile && launch_state == LAUNCH_STATE.REST) {
             launch_state = LAUNCH_STATE.REST_ELEVATOR_UP;
             targetAngle = currentAngle + (REST_UP_ANGLE - (currentAngle % 360));
             startProfile(currentAngle);
             elevatorUpReadyForProfile = false;
         }
+        // when elevator is moved down, move back to normal rest state
         else if (!elevatorIsUp) {
             if (launch_state == LAUNCH_STATE.REST_ELEVATOR_UP) {
                 toggleNormalRest();
@@ -244,46 +285,53 @@ public class Launcher {
             elevatorUpReadyForProfile = true;
         }
 
+        // Calculate error
         double error = targetAngle - currentAngle;
         pidOutput = 0.0;
         double refVel = 0.0;
 
-//        if (launch_state == LAUNCH_STATE.SHOOT && !(shoot_power == FLOWER_VELOCITY) && error > 270) {
-//            launchMotor.setPower(shoot_power);
-//        }
+        // SPIT state: move in reverse direction
         if (launch_state == LAUNCH_STATE.SPIT) {
             pidOutput = -0.5;
-            launch_state = LAUNCH_STATE.REST;
+            launch_state = LAUNCH_STATE.REST; // set to rest so that only continues spit when button is held down
         }
+        // SHOOT state: start motion profile
         else if (launch_state == LAUNCH_STATE.SHOOT) {
             double v = shootRefVel;
             double[] sp;
 
+            double accel;
+            // For flower currently does a basic motion profile with flower shoot acceleration
+            // might swap to shoot profile version with accel dist later
             if (launchType == LAUNCH_TYPE.FLOWER) {
                 sp = Shooter.motion_profile(FLOWER_SHOOT_ACCEL, v, shootDist, shootTimer.seconds());
             }
+            // For shoot uses a set acceleration distance to calculate the acceleration
             else {
-                double accel = v * v / (2 * SHOOT_ACCEL_DIST);
+                accel = v * v / (2 * SHOOT_ACCEL_DIST);
                 double total_dist = 2 * SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST;
                 sp = Shooter.motion_profile(accel, v, total_dist, shootTimer.seconds());
             }
 
+            // predicted angle, velocity, and acceleration
             refAngle = profileStartAngle + sp[0];
             refVel = sp[1];
             double refAcc = sp[2];
             double velError = refVel - currentVel;
 
-            pidOutput = LAUNCHER_PID_COEFFS.kS * Math.signum(refVel) +
-                    LAUNCHER_PID_COEFFS.kV * refVel +
-                    LAUNCHER_PID_COEFFS.kA * refAcc +
-                    LAUNCHER_PID_COEFFS.kP * velError +
-                    LAUNCHER_PID_COEFFS.KP_POS * (refAngle - currentAngle);
+            pidOutput = PADDLE_PID_COEFFS.kS * Math.signum(refVel) +
+                    PADDLE_PID_COEFFS.kV * refVel +
+                    PADDLE_PID_COEFFS.kA * refAcc +
+                    PADDLE_PID_COEFFS.kP * velError +
+                    PADDLE_PID_COEFFS.KP_POS * (refAngle - currentAngle);
             ;
         }
+        // POSITION state: moves backward to a position before shooting
+        // REST state: moves to a set position to hold
         else {
-            // Motion profile
+            // Motion profile using the distance to travel and MAX_ACCEL and MAX_VEL
             double dist = Math.abs(profileTargetAngle - profileStartAngle);
-            double[] profile = Shooter.motion_profile(MAX_ACCEL, MAX_VEL, dist, launcher_motion_timer.seconds());
+            double[] profile = Shooter.motion_profile(MAX_ACCEL, MAX_VEL, dist, paddle_motion_timer.seconds());
 
             // predicted values
             refAngle = profileStartAngle + profileDir * profile[0];
@@ -297,35 +345,40 @@ public class Launcher {
             final double I_ZONE = 40;        // only integrate within 40 deg of target
             final double I_MAX_POWER = 0.2;  // integral only contributes max of 0.2 power
 
+            // Only uses integral if the error is large
             if (Math.abs(error) < I_ZONE) {
                 integral += error * elapsedTime;
-                if (LAUNCHER_PID_COEFFS.kI != 0) {
-                    double lim = I_MAX_POWER / LAUNCHER_PID_COEFFS.kI;
+                if (PADDLE_PID_COEFFS.kI != 0) {
+                    double lim = I_MAX_POWER / PADDLE_PID_COEFFS.kI;
                     integral = Math.max(-lim, Math.min(lim, integral));
                 }
             } else {
                 integral = 0;
             }
 
+            // derivative
             double derivative = (velError - lastError) / elapsedTime;
             lastError = velError;
 
-            double pos_const = LAUNCHER_PID_COEFFS.KP_POS;
+            // for rest state once the position gets close lower KP_POS to reduce oscillation
+            double pos_const = PADDLE_PID_COEFFS.KP_POS;
             if (launch_state == LAUNCH_STATE.REST && posError < ANGLE_TOLERANCE_TO_REST) {
-                pos_const = LAUNCHER_PID_COEFFS.KP_HOLD_POS;
+                pos_const = PADDLE_PID_COEFFS.KP_HOLD_POS;
             }
 
-            pidOutput = LAUNCHER_PID_COEFFS.kS * Math.signum(refVel) +
-                    LAUNCHER_PID_COEFFS.kV * refVel +
-                    LAUNCHER_PID_COEFFS.kA * refAcc +
-                    LAUNCHER_PID_COEFFS.kP * velError +
-                    LAUNCHER_PID_COEFFS.kI * integral +
-                    LAUNCHER_PID_COEFFS.kD * derivative +
+            pidOutput = PADDLE_PID_COEFFS.kS * Math.signum(refVel) +
+                    PADDLE_PID_COEFFS.kV * refVel +
+                    PADDLE_PID_COEFFS.kA * refAcc +
+                    PADDLE_PID_COEFFS.kP * velError +
+                    PADDLE_PID_COEFFS.kI * integral +
+                    PADDLE_PID_COEFFS.kD * derivative +
                     pos_const * posError;
         }
 
-        pidOutput += LAUNCHER_PID_COEFFS.kG * Math.sin(Math.toRadians(currentAngle % 360));
+        // Add gravity coefficient
+        pidOutput += PADDLE_PID_COEFFS.kG * Math.sin(Math.toRadians(currentAngle % 360));
 
+        // Accounts for battery voltage and clamps it
         pidOutput *= 12.0 / volts;
         pidOutput = Math.max(-1, Math.min(1, pidOutput));
 
@@ -334,13 +387,16 @@ public class Launcher {
 //        }
         lastPIDOutput = pidOutput;
 
-        launchMotor.setPower(pidOutput);
+        paddleMotor.setPower(pidOutput);
 
+        // Once position profile gets close to correct angle, change to SHOOT state and start profile
         if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == LAUNCH_STATE.POSITION) {
             targetAngle = targetAngle + (SHOOT_ACCEL_DIST*2 + SHOOT_CRUISE_DIST);
             launch_state = LAUNCH_STATE.SHOOT;
             startShootProfile(currentAngle);
         }
+        // Once shoot profile gets starts slowing down, change to REST state and start profile
+        // TODO: try different values for refVel < 25
         else if (shootTimer.seconds() > 0.1 && refVel < 25 && launch_state == LAUNCH_STATE.SHOOT) {
             launch_state = LAUNCH_STATE.REST;
             targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
@@ -359,32 +415,39 @@ public class Launcher {
 //        packet.put("Error", error);
 //        packet.put("PIDOutput", pidOutput);
         packet.put("shoot velocity", shootVelocity);
-        packet.put("launcher state", launch_state);
-//        packet.put("launcher velocity", ticksToDegrees(launchMotor.getVelocity()));
+        packet.put("paddle state", launch_state);
+//        packet.put("paddle velocity", ticksToDegrees(paddleMotor.getVelocity()));
         FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
 
+    /*
+     * shift zero position manually to account for encoder getting off as match progresses
+     */
     public void shiftZeroPositionForward() {
-        launcherZeroPos += NUDGE_ZERO_AMOUNT;
+        paddleZeroPos += NUDGE_ZERO_AMOUNT;
     }
-
     public void shiftZeroPositionBackward() {
-        launcherZeroPos -= NUDGE_ZERO_AMOUNT;
+        paddleZeroPos -= NUDGE_ZERO_AMOUNT;
     }
 
-    public void launcherFoward() {
-        launchMotor.setPower(1);
+    // functions for testing, just move paddle forward or stop it
+    public void paddleFoward() {
+        paddleMotor.setPower(1);
     }
 
-    public void launcherForwardSlow() {
-        launchMotor.setPower(0.25);
+    public void paddleForwardSlow() {
+        paddleMotor.setPower(0.25);
     }
 
     public void rest() {
-        launchMotor.setPower(0);
+        paddleMotor.setPower(0);
     }
 
-    public void shootState() { // force a shoot if the position PID doesn't fully complete
+    /**
+     * Forces a shoot by skipping to SHOOT state if the position PID doesn't fully complete
+     * Changes to SHOOT state and starts profile
+     */
+    public void shootState() {
         double currentAngle = getCurrentAngle();
         launch_state = LAUNCH_STATE.SHOOT;
         targetAngle = currentAngle + ((REST_ANGLE - (currentAngle % 360)) % 360.0 + 360);
