@@ -12,8 +12,8 @@ public class Flower {
 
     public Flower(HardwareMap hardwareMap) {
         flowerServo = hardwareMap.get(Servo.class, "flowerServo");
-        descoreServo = hardwareMap.get(Servo.class, "descoreServo");
-        descoreServo.setPosition(0.55);
+//        descoreServo = hardwareMap.get(Servo.class, "descoreServo");
+//        descoreServo.setPosition(0.55);
     }
 
     public void extendFlowerServo() {
@@ -23,10 +23,10 @@ public class Flower {
     public void toggleFlowerDescorer() {
         if (toggleFlowerDescorer) {
             toggleFlowerDescorer = false;
-            descoreServo.setPosition(0.55);
+//            descoreServo.setPosition(0.55);
         }
         else {toggleFlowerDescorer = true;
-            descoreServo.setPosition(0);
+//            descoreServo.setPosition(0);
         }
     }
 }
