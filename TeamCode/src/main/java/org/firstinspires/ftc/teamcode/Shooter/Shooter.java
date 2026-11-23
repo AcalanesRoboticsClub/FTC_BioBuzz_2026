@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.Shooter;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 /*
@@ -19,7 +21,8 @@ public class Shooter {
     public enum PADDLE_TYPE {FLOWER, SHOOT};
     public static PADDLE_TYPE paddleTypeToggle = PADDLE_TYPE.SHOOT;
 
-    double timeToElevatorDown = 10;
+    double timeToElevatorDown = 4;
+    boolean elevatorDeployed = false;
 
     public Shooter(HardwareMap hardwareMap) {
         hood = new Hood(hardwareMap);
@@ -137,8 +140,9 @@ public class Shooter {
      */
     public void updateShooter(double dt, double volts, boolean runPaddle) {
         // Move elevator down after it moves slightly up on deploy
-        if (timeToElevatorDown < 0) {
+        if (timeToElevatorDown < 0 && !elevatorDeployed) {
             elevator.toggleBottomPos();
+            elevatorDeployed = true;
         }
         else {
             timeToElevatorDown -= dt;
@@ -153,10 +157,14 @@ public class Shooter {
             paddle.updatePaddle(dt, volts, !elevator.hitBottom());
         }
 
-        // When elevator is movinng down, move paddle to normal resting position
+        // When elevator is moving down, move paddle to normal resting position
         if (elevator.movingDown()) {
             paddle.toggleNormalRest();
         }
+
+        TelemetryPacket packet = new TelemetryPacket();
+        packet.put("time to elevator down", timeToElevatorDown);
+        FtcDashboard.getInstance().sendTelemetryPacket(packet);
     }
 
     /**

@@ -187,6 +187,7 @@ public class Elevator {
     }
     public void goToPos(double h) {
         target_height = h;
+        elevatorState = STATE.GO_TO_POS;
     }
 
     /**
@@ -209,11 +210,14 @@ public class Elevator {
      * @param value inputted power value
      */
     public void runBackward(double value) {
-        if (elevatorState != STATE.CREEP) {
+        if (ticksToDistInches(elevatorMotor.getCurrentPosition()) > CREEP_HEIGHT) {
             elevatorState = STATE.MANUAL;
             double power = Helpers.slew(0.4, -Math.clamp(value, 0, MAX_POWER), lastPower);
             elevatorMotor.setPower(-Math.clamp(power, 0, MAX_POWER));
             lastPower = power;
+        }
+        else {
+            elevatorState = STATE.CREEP;
         }
 
 //        if (ticksToDistInches(elevatorMotor.getCurrentPosition()) <= DIST_TOLERANCE) {
@@ -246,7 +250,7 @@ public class Elevator {
      * Update function - uses states to move to different positions using motion profiles
      * @param elapsedTime time since last function call
      * @param volts battery voltage
-     */
+epl     */
     public void updateElevator(double elapsedTime, double volts) {
         // Current position and velocty with a low-pass filter
         double currentPos = ticksToDistInches(elevatorMotor.getCurrentPosition());
@@ -319,7 +323,7 @@ public class Elevator {
                 pidOutput += ELEVATOR_PID_COEFFS.kG + bandFeedforward(holdPos);
             }
             // For moving to flower or top position, use a motion profile
-            else if (elevatorState == STATE.FLOWER || elevatorState == STATE.TOP) {
+            else if (elevatorState == STATE.FLOWER || elevatorState == STATE.TOP || elevatorState == STATE.GO_TO_POS) {
                 //            if (elevatorState == STATE.BOTTOM) {
                 //                error = 0 - currentPos;
                 //            } else if (elevatorState == STATE.TOP) {
@@ -406,7 +410,7 @@ public class Elevator {
         }
 
         // once almost to the bottom and velocity is low stop motor
-        if (ticksToDistInches(elevatorMotor.getCurrentPosition()) < DIST_TOLERANCE && Math.abs(currentVel) < 2.0 && (elevatorState == STATE.MANUAL || elevatorState == STATE.CREEP || elevatorState == STATE.HOLD_POS)) {
+        if (ticksToDistInches(elevatorMotor.getCurrentPosition()) < DIST_TOLERANCE && (currentVel < 0.0 && currentVel > -2.0) && (elevatorState == STATE.MANUAL || elevatorState == STATE.CREEP || elevatorState == STATE.HOLD_POS)) {
             elevatorState = STATE.STOP; // don't hold position, just stop motor
         }
 
@@ -416,12 +420,12 @@ public class Elevator {
         packet.put("Elevator State", elevatorState.toString());
 //        packet.put("Elevator ticks", elevatorMotor.getCurrentPosition());
         packet.put("Elevator Current position", currentPos);
-//        packet.put("Elevator Reference position", refPos);
+        packet.put("Elevator Reference position", refPos);
 //        packet.put("Elevator Reference velocity", refVel);
 //        packet.put("Elevator current velocity", currentVel);
 //        packet.put("Error", error);
-//        packet.put("PID Output", pidOutput);
-//        packet.put("Target position", profileTarget);
+        packet.put("Elevator Motor Power", pidOutput);
+        packet.put("Target position", profileTarget);
 
 //        packet.put("Slew PID On", SLEW_PID);
 //        packet.put("Slew rate", SLEW_RATE);
