@@ -1,25 +1,25 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.pedropathing.api.Paths;
-
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
+import static com.pedropathing.ivy.commands.Commands.*;
 import static com.pedropathing.ivy.Scheduler.schedule;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-@Autonomous(name = "b-1tip", group = "Autonomous")
-public class blueAuto extends LinearOpMode {
+public class autoTesting extends LinearOpMode {
 
     private Follower follower;
+    private Robot robot;
 
-    private final PoseFactory poseFactory = PoseFactory.degrees();
+    protected PoseFactory poseFactory = PoseFactory.degrees();
 
     private final Pose start = poseFactory.of(82.915, 131.2598, -90);
     private final Pose moveToGarden = poseFactory.of(128.0973, 112.8543, 90);
@@ -39,9 +39,35 @@ public class blueAuto extends LinearOpMode {
     // Autonomous routine
     public Command autoRoutine() {
         return sequential(
-                follow(follower, moveToGarden()),
-                follow(follower, pickupFromGarden()),
+                instant(() -> storeAllianceColor()), // Store alliance
+
+                // Deploy Robot at starting pose
+                instant(() -> robot.deploy()),
+                waitMs(500), // allow time for elevator to raise
+                instant(() -> robot.shooter.elevator.toggleBottomPos()),
+                waitMs(1500), // ensure robot deployment
+
+                // Launch 4 preloaded pollen
+                instant(() -> robot.shooter.calculateShoot(4, 0)),
+                instant(() -> robot.shooter.launcher.toggleShoot()),
+                waitMs(3000), // wait during launch
+
+                // Move to garden and intake the 4 pollen there
+                follow(follower, moveToGarden()), // Lines up in front of garden
+                instant(() -> robot.intake.toggle()), // Enable intake (matches TeleOP toggle if intake starts in rest)
+                follow(follower, pickupFromGarden()), // Drives into pollen
+                waitMs(2500), // Wait to ensure pollen are picked up
+
+                // Go to other hive and shoot, hopefully after a tip
                 follow(follower, moveToFarHive()),
+                waitMs(500),
+                // Launch 4 pollen
+                instant(() -> robot.shooter.calculateShoot(4, 0)),
+                instant(() -> robot.shooter.launcher.toggleShoot()),
+                waitMs(3000), // wait during launch
+
+                instant(() -> robot.intake.rest()), // Stop intake
+
                 follow(follower, park())
         );
     }
@@ -50,6 +76,7 @@ public class blueAuto extends LinearOpMode {
     public void runOpMode() {
         Scheduler.reset();
         follower = PedroConstants.create(hardwareMap);
+        robot = new Robot(hardwareMap);
         follower.setPose(start);
         follower.update();
 
@@ -59,6 +86,7 @@ public class blueAuto extends LinearOpMode {
         while (opModeIsActive()) {
             follower.update();
             Scheduler.execute();
+            robot.update();
 
             telemetry.addData("x", follower.pose().x());
             telemetry.addData("y", follower.pose().y());
@@ -88,4 +116,6 @@ public class blueAuto extends LinearOpMode {
     public Path park() {
         return Paths.curve(parkStart, parkControl1, park).linear(parkStart, park);
     }
+
+    public void storeAllianceColor() {}; // will be overridden via inhertiance for diff colors
 }

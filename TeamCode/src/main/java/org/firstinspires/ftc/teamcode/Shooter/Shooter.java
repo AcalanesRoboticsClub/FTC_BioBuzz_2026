@@ -23,9 +23,7 @@ public class Shooter { // will contain elevator, hood, and launcher
         elevator = new Elevator(hardwareMap);
     }
 
-    public void deploy() {
-        elevator.goToPos(3);
-    }
+    public void deploy() { elevator.toggleTopPos(); }
 
     public void toggleFlowerMode() {
         if (launchTypeToggle == LAUNCH_TYPE.FLOWER) {
@@ -87,6 +85,12 @@ public class Shooter { // will contain elevator, hood, and launcher
         launcher.setShootVelocity(2000);
         hood.setPos(0.22);
         elevator.goToPos(0);
+
+        // TEMPORARY for auto testing
+        if(numPollen == 4) {
+            launcher.setShootVelocity(3000);
+            hood.setPos(0);
+        }
     }
 
     public void calculateShoot(double numPollen, double numNectar, double pose) {
