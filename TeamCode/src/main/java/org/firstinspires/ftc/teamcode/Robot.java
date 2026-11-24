@@ -39,6 +39,7 @@ public class Robot {
 
     ElapsedTime timer = new ElapsedTime();
     ElapsedTime voltTimer = new ElapsedTime();
+    ElapsedTime patternTimer = new ElapsedTime();
 
     public Robot(HardwareMap hardwareMap) {
         shooter = new Shooter(hardwareMap);
@@ -64,18 +65,9 @@ public class Robot {
 
     /**
      * Toggles flower mode on and off
-     * On - led turns green
-     * Off - led turns red
      */
     public void toggleFlower() {
         shooter.toggleFlowerMode();
-
-        // Set LED indicator light
-        if(shooter.isFlowerMode()) {
-            ledIndicator.setPosition(0.5); // green
-        } else {
-            ledIndicator.setPosition(0.28); // red
-        }
     }
 
     /**
@@ -96,6 +88,57 @@ public class Robot {
             volts = vs.getVoltage();
             voltTimer.reset();
         }
+
+        // Blinking lights
+        // green - flower
+        // purple - shoot
+        // number yellow blinks - pollen
+        // number blue blinks - nectar
+        // number red blinks - nectar
+        double cycleTime = patternTimer.seconds();
+        double timeToBlink = 0.5;
+        double timeForPollen = shooter.numPollen * timeToBlink;
+        double timeForNectar = shooter.numNectar * timeToBlink;
+        if (cycleTime < 0.5) {
+            if (shooter.isFlowerMode()) {
+                ledIndicator.setPosition(0.5);
+            }
+            else {
+                ledIndicator.setPosition(0.722);
+            }
+        }
+        else if (cycleTime > 1 && cycleTime < 1 + timeForPollen && timeForPollen > 0.1) {
+            double timeInStage = cycleTime - 0.5;
+            double timeInCurrentStep = timeInStage % timeToBlink;
+
+            if (timeInCurrentStep < timeToBlink / 2.0) {
+                ledIndicator.setPosition(0.333);
+            } else {
+                ledIndicator.setPosition(0.0);
+            }
+        }
+        else if (cycleTime > 1.5 + timeForPollen && cycleTime < 1.5 + timeForPollen + timeForNectar && timeForNectar > 0.1) {
+            double timeInStage = cycleTime - 0.5 - timeForPollen;
+            double timeInCurrentStep = timeInStage % timeToBlink;
+
+            if (timeInCurrentStep < timeToBlink / 2.0) {
+                if (HandoffPoseStorage.alliance_color == HandoffPoseStorage.ALLIANCE.BLUE) {
+                    ledIndicator.setPosition(0.611);
+                }
+                if (HandoffPoseStorage.alliance_color == HandoffPoseStorage.ALLIANCE.RED) {
+                    ledIndicator.setPosition(0.277);
+                }
+            } else {
+                ledIndicator.setPosition(0.0);
+            }
+        }
+        else if (cycleTime < 2 + timeForPollen + timeForNectar) {
+            ledIndicator.setPosition(0.0);
+        }
+        else {
+            patternTimer.reset();
+        }
+
 
         double dt = timer.seconds();
         timer.reset();
