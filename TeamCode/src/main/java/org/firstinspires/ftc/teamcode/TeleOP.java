@@ -97,6 +97,9 @@ public class TeleOP extends LinearOpMode {
             if (gamepad2.backWasPressed()) {
                 robot.shooter.paddle.shootState();
             }
+            if (gamepad1.backWasPressed()) {
+                robot.shooter.paddle.paddleFoward();
+            }
 
             if (gamepad1.aWasPressed() || gamepad2.aWasPressed()) {
                 robot.intake.toggle();

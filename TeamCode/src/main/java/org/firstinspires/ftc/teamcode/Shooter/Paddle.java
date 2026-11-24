@@ -25,8 +25,8 @@ public class Paddle {
 
     // Angle constants
     final double REST_ANGLE = 270.0; // help guide objects into sleeve
-    final double REST_UP_ANGLE = 315.0; // prevent objects from falling out
-    final double SHOOT_POS_ANGLE = 50.0;
+    final double REST_UP_ANGLE = 300.0; // prevent objects from falling out
+    final double SHOOT_POS_ANGLE = 60.0;
     final double SHOOT_ANGLE = 360 * 2.75;
     final double FLOWER_ANGLE = 360 * 1.2;
 
@@ -35,7 +35,7 @@ public class Paddle {
     final double TICKS_PER_REV = 224.0; // gobilda - 357.7?
 
     // Tolerances
-    public static double ANGLE_TOLERANCE_TO_SHOOT = 35;
+    public static double ANGLE_TOLERANCE_TO_SHOOT = 10;
     public static double ANGLE_TOLERANCE_TO_REST = 10;
     double targetAngle = 0;
 
@@ -63,7 +63,7 @@ public class Paddle {
     // Shooting profile values
     double shootRefVel = 0;
     double filteredVel = 0; // TODO: change to kalman filter to smooth motion
-    public static double LAUNCH_VEL_FILTER_ALPHA = 0.3;
+    public static double LAUNCH_VEL_FILTER_ALPHA = 0.7;
     ElapsedTime shootTimer = new ElapsedTime();
     double shootDist = 0;
     public static double shootVelocity = 2000;
@@ -77,52 +77,56 @@ public class Paddle {
         public static double kA = 0.00006;
         public static double kP = 0.0001;
         public static double kI = 0;
-        public static double kD = 0.00003;
+        public static double kD = 0.00001;
         public static double kG = 0.04345; // (-0.0979-0.011)/2,    0.0436
         public static double KP_POS = 0.003;
         public static double KP_HOLD_POS = 0.008;
+        public static double kLOAD = 0.00;  // extra constant to account for game objects
     }
     @Config
     public static class PADDLE_SHOOT_PID_COEFFS {
-        public static double kS = 0.05445;
-        public static double kV = 0.002;
-        public static double kA = 0.005;
-        public static double kP = 3;
         public static double kI = 0;
-        public static double kD = 0.01;
+        public static double kS = 0.05445;
+        public static double kV = 0.0002;
+        public static double kA = 0.00005; // 0.006
+        public static double kP = 0.0004; // 0.002
+        public static double kD = 0;
         public static double kG = 0.0436;
-        public static double KP_POS = 0.003;
-        public static double KP_HOLD_POS = 0.008;
+        public static double KP_POS = 0;
+        public static double KP_HOLD_POS = 0;
     }
     @Config
     public static class PADDLE_FLOWER_PID_COEFFS {
-        public static double kS = 0.05445;
-        public static double kV = 0.01;
-        public static double kA = 0.00001;
-        public static double kP = 0.003;
         public static double kI = 0;
-        public static double kD = 0.00001;
+        public static double kS = 0.05445;
+        public static double kV = 0.0002;
+        public static double kA = 0.002;
+        public static double kP = 0.0007;
+        public static double kD = 0;
         public static double kG = 0.0436;
-        public static double KP_POS = 0.00;
-        public static double KP_HOLD_POS = 0.008;
+        public static double KP_POS = 0;
+        public static double KP_HOLD_POS = 0;
     }
     double lastError = 0.0;
     double integral = 0.0;
+    double velIntegral = 0;
     public static double pidOutput;
     double lastPIDOutput = 0.0;
 
     // Profile constants
     public static double MAX_VEL = 1200;
     public static double MAX_ACCEL = 800;
+    public static double I_MAX = 0.25;
 
     // Shoot profile constants
-    public static double FLOWER_VELOCITY = 50; // deg/sec
+    public static double FLOWER_VELOCITY = 100; // deg/sec
     public static double SHOOT_MAX_VELOCITY = 2200; // clamp max velocity
     public static double FLOWER_SHOOT_ACCEL = 800;
-    public static double SHOOT_ACCEL_DIST = 200;
-    public static double SHOOT_CRUISE_DIST = 500;
+    public static double SHOOT_ACCEL_DIST = 230;
+    public static double SHOOT_CRUISE_DIST = 200;
     public static double FLOWER_ACCEL_DIST = 25;
-    public static double FLOWER_CRUISE_DIST = 120;
+    public static double FLOWER_CRUISE_DIST = 270;
+    double lastShootError = 0.0;
 
     /**
      * converts from degrees to ticks
@@ -199,7 +203,6 @@ public class Paddle {
         targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
         startProfile(currentAngle);
         launch_state = LAUNCH_STATE.REST;
-        elevatorUpReadyForProfile = true;
     }
 
     /*
@@ -255,9 +258,10 @@ public class Paddle {
         profileTargetAngle = targetAngle;
         profileDir = Math.signum(targetAngle - currentAngle); // direction of motion
         integral = 0;
-        lastError = 0;
+        lastShootError = 0;
         lastTargetAngle = targetAngle;
-        shootDist = targetAngle - currentAngle;
+//        shootDist = targetAngle - currentAngle;
+        shootDist = 0; // shoot distance travelled
         profileShootVelocity = shootVelocity;
         shootTimer.reset();
     }
@@ -325,43 +329,86 @@ public class Paddle {
         }
         // SHOOT state: start motion profile
         else if (launch_state == LAUNCH_STATE.SHOOT) {
-            double v = shootRefVel;
+//            double v = shootRefVel;
             double[] sp;
 
             double accel;
+            double refAcc;
+            boolean profile_done = false;
+            double pid_load = 0; // account for load of game objects
+            double pid_I = 0;
+            double velError = 0;
             // For flower currently does a basic motion profile with flower shoot acceleration
             // might swap to shoot profile version with accel dist later
             if (launchType == LAUNCH_TYPE.FLOWER) {
-                accel = v * v / (2 * FLOWER_ACCEL_DIST);
-                double total_dist = 2 * FLOWER_ACCEL_DIST + FLOWER_CRUISE_DIST;
-                sp = Shooter.motion_profile(accel, v, total_dist, shootTimer.seconds());
+                shootDist = currentAngle - profileStartAngle;
+                sp = Shooter.distance_profile(FLOWER_ACCEL_DIST, FLOWER_CRUISE_DIST, FLOWER_VELOCITY, 0.5*FLOWER_VELOCITY, shootDist);
+
+                // predicted angle, velocity, and acceleration
+                refAngle = currentAngle; // not part of shoot profile
+                refVel = sp[0];
+                refAcc = sp[1];
+                profile_done = (sp[2] == 1);
+
+                pid_load = PADDLE_PID_COEFFS.kLOAD;
+                velError = refVel - currentVel;
+
+                // integral term (for flower)
+                velIntegral += velError * elapsedTime;
+                double lim = I_MAX / Math.max(PADDLE_FLOWER_PID_COEFFS.kI, 1e-9);
+                velIntegral = Math.max(-lim, Math.min(lim, velIntegral));
+                pid_I = Math.max(-0.3, Math.min(0.3, velIntegral*PADDLE_FLOWER_PID_COEFFS.kI));
             }
             // For shoot uses a set acceleration distance to calculate the acceleration
             else {
-                accel = v * v / (2 * SHOOT_ACCEL_DIST);
-                double total_dist = 2 * SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST;
-                sp = Shooter.motion_profile(accel, v, total_dist, shootTimer.seconds());
+                shootDist = currentAngle - profileStartAngle; // distance travelled since start
+                sp = Shooter.distance_profile(SHOOT_ACCEL_DIST, SHOOT_CRUISE_DIST, shootRefVel, 50, shootDist); // set initial velocity to 50 deg/s
+
+                // predicted angle, velocity, and acceleration
+                refAngle = currentAngle; // not part of shoot profile
+                refVel = sp[0];
+                refAcc = sp[1];
+                profile_done = (sp[2] == 1);
+                velError = refVel - currentVel;
+
+                if (shootDist > SHOOT_ACCEL_DIST && shootDist < SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST) {
+                    pid_load = PADDLE_PID_COEFFS.kLOAD;
+                }
             }
 
-            // predicted angle, velocity, and acceleration
-            refAngle = profileStartAngle + sp[0];
-            refVel = sp[1];
-            double refAcc = sp[2];
-            double velError = refVel - currentVel;
+            double derivative = (velError - lastShootError) / elapsedTime;
+            lastShootError = velError;
 
-            if (launchType == LAUNCH_TYPE.FLOWER) {
-                pidOutput = PADDLE_FLOWER_PID_COEFFS.kS * Math.signum(refVel) +
-                        PADDLE_FLOWER_PID_COEFFS.kV * refVel +
-                        PADDLE_FLOWER_PID_COEFFS.kA * refAcc +
-                        PADDLE_FLOWER_PID_COEFFS.kP * velError +
-                        PADDLE_FLOWER_PID_COEFFS.KP_POS * (refAngle - currentAngle);
+            if (!profile_done) {
+                if (launchType == LAUNCH_TYPE.FLOWER) {
+                    pidOutput = PADDLE_FLOWER_PID_COEFFS.kS * Math.signum(refVel) +
+                            PADDLE_FLOWER_PID_COEFFS.kV * refVel +
+                            PADDLE_FLOWER_PID_COEFFS.kA * refAcc +
+                            PADDLE_FLOWER_PID_COEFFS.kP * velError +
+                            PADDLE_FLOWER_PID_COEFFS.kD * derivative +
+                            PADDLE_FLOWER_PID_COEFFS.KP_POS * (refAngle - currentAngle) +
+                            pid_load +
+                            pid_I;
+                } else {
+                    pidOutput = PADDLE_SHOOT_PID_COEFFS.kS * Math.signum(refVel) +
+                            PADDLE_SHOOT_PID_COEFFS.kV * refVel +
+                            PADDLE_SHOOT_PID_COEFFS.kA * refAcc +
+                            PADDLE_SHOOT_PID_COEFFS.kP * velError +
+                            PADDLE_SHOOT_PID_COEFFS.kD * derivative +
+                            PADDLE_SHOOT_PID_COEFFS.KP_POS * (refAngle - currentAngle) +
+                            pid_load;
+                }
             }
             else {
-                pidOutput = PADDLE_SHOOT_PID_COEFFS.kS * Math.signum(refVel) +
-                        PADDLE_SHOOT_PID_COEFFS.kV * refVel +
-                        PADDLE_SHOOT_PID_COEFFS.kA * refAcc +
-                        PADDLE_SHOOT_PID_COEFFS.kP * velError +
-                        PADDLE_SHOOT_PID_COEFFS.KP_POS * (refAngle - currentAngle);
+                pidOutput = 0;
+
+                // once paddle has slowed down, change to rest profile
+                if (currentVel < 100) {
+                    launch_state = LAUNCH_STATE.REST;
+                    targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
+                    startProfile(currentAngle);
+                    elevatorUpReadyForProfile = false;
+                }
             }
 
         }
@@ -436,12 +483,13 @@ public class Paddle {
         }
         // Once shoot profile gets starts slowing down, change to REST state and start profile
         // TODO: try different values for refVel < 25
-        else if (shootTimer.seconds() > 2 && refVel < 15 && launch_state == LAUNCH_STATE.SHOOT) {
-            launch_state = LAUNCH_STATE.REST;
-            targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
-            startProfile(currentAngle);
-            elevatorUpReadyForProfile = false;
-        }
+//        else if (shootTimer.seconds() > 2 && shootDist > SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST) && currentVel < 500 && launch_state == LAUNCH_STATE.SHOOT) {
+////        else if (shootTimer.seconds() > 2 && refVel < 15 && launch_state == LAUNCH_STATE.SHOOT) {
+//            launch_state = LAUNCH_STATE.REST;
+//            targetAngle = currentAngle + (REST_ANGLE - (currentAngle % 360));
+//            startProfile(currentAngle);
+//            elevatorUpReadyForProfile = false;
+//        }
 
         TelemetryPacket packet = new TelemetryPacket();
 //        packet.put("Current Angle (360)", currentAngle % 360);
@@ -452,7 +500,7 @@ public class Paddle {
         packet.put("current vel", currentVel);
 //        packet.put("Shoot Ref Dist", shootDist);
 //        packet.put("Error", error);
-//        packet.put("PIDOutput", pidOutput);
+        packet.put("PIDOutput", pidOutput);
         packet.put("shoot velocity", shootVelocity);
         packet.put("paddle state", launch_state);
 //        packet.put("paddle velocity", ticksToDegrees(paddleMotor.getVelocity()));
