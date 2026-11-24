@@ -10,5 +10,6 @@ public class HandoffPoseStorage {
 
     public HandoffPoseStorage() {
         robotPose = Robot.robotPose;
+        alliance_color = ALLIANCE.RED;
     }
 }

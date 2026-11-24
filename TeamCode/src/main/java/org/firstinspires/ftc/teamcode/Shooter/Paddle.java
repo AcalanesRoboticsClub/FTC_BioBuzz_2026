@@ -26,9 +26,10 @@ public class Paddle {
     // Angle constants
     final double REST_ANGLE = 270.0; // help guide objects into sleeve
     final double REST_UP_ANGLE = 300.0; // prevent objects from falling out
-    final double SHOOT_POS_ANGLE = 60.0;
+    final double SHOOT_POS_ANGLE = 85.0;
+    final double FLOWER_POS_ANGLE = 100.0;
     final double SHOOT_ANGLE = 360 * 2.75;
-    final double FLOWER_ANGLE = 360 * 1.2;
+    final double FLOWER_ANGLE = 360 * 1.5;
 
     // Mechanism constants
     final double GEAR_RATIO = 10.0 / 24.0;
@@ -93,22 +94,23 @@ public class Paddle {
         public static double kG = 0.0436;
         public static double KP_POS = 0;
         public static double KP_HOLD_POS = 0;
-        public static double kLOAD_POLLEN = 0.00;  // extra constant to account for game objects
+        public static double kLOAD_POLLEN = 8;  // extra constant to account for game objects
+        // ˜100 for 4 pollen?
         public static double kLOAD_NECTAR = 0.00;  // extra constant to account for game objects
     }
     @Config
     public static class PADDLE_FLOWER_PID_COEFFS {
         public static double kI = 0;
         public static double kS = 0.05445;
-        public static double kV = 0.0002;
-        public static double kA = 0.00008;
-        public static double kP = 0.0004;
-        public static double kD = 0;
+        public static double kV = 0.00045;
+        public static double kA = 0.00004;
+        public static double kP = 0.0008;
+        public static double kD = 0.00001;
         public static double kG = 0.0436;
-        public static double KP_POS = 0;
+        public static double KP_POS = 0.003;
         public static double KP_HOLD_POS = 0;
-        public static double kLOAD_POLLEN = 0;
-        public static double kLOAD_NECTAR = 0.00;  // extra constant to account for game objects
+        public static double kLOAD_POLLEN = 0.05;
+        public static double kLOAD_NECTAR = 0.05;  // extra constant to account for game objects
     }
     double lastError = 0.0;
     double integral = 0.0;
@@ -122,11 +124,11 @@ public class Paddle {
     public static double I_MAX = 0.25;
 
     // Shoot profile constants
-    public static double FLOWER_VELOCITY = 100; // deg/sec
+    public static double FLOWER_VELOCITY = 300; // deg/sec
     public static double SHOOT_MAX_VELOCITY = 2200; // clamp max velocity
-    public static double FLOWER_SHOOT_ACCEL = 800;
-    public static double SHOOT_ACCEL_DIST = 230;
-    public static double SHOOT_CRUISE_DIST = 200;
+    public static double FLOWER_SHOOT_ACCEL = 1000;
+    public static double SHOOT_ACCEL_DIST = 180;
+    public static double SHOOT_CRUISE_DIST = 250;
     public static double FLOWER_ACCEL_DIST = 25;
     public static double FLOWER_CRUISE_DIST = 270;
     double lastShootError = 0.0;
@@ -292,9 +294,9 @@ public class Paddle {
         if (shootToggle) {
             // For flower immediately shoot
             if (launchType == LAUNCH_TYPE.FLOWER) {
-                targetAngle = currentAngle + (FLOWER_ANGLE);
-                launch_state = LAUNCH_STATE.SHOOT;
-                startShootProfile(currentAngle);
+                targetAngle = currentAngle - ((currentAngle % 360.0) - FLOWER_POS_ANGLE);
+                launch_state = LAUNCH_STATE.POSITION;
+                startProfile(currentAngle);
             }
             // For normal shoot, first go to POSITION state and spin backwards before shooting
             else {
@@ -349,8 +351,7 @@ public class Paddle {
                 refVel = sp[1];
                 refAcc = sp[2];
                 refAngle = Math.min(profileStartAngle + sp[0], currentAngle + 15);
-                profile_done = currentAngle >= profileTargetAngle - 5
-                        || shootTimer.seconds() > 6;
+                profile_done = shootTimer.seconds() > 5;
 
 //                shootDist = currentAngle- profileStartAngle;
 //                sp = Shooter.distance_profile(FLOWER_ACCEL_DIST, FLOWER_CRUISE_DIST, FLOWER_VELOCITY, 0.5*FLOWER_VELOCITY, shootDist);
@@ -361,7 +362,9 @@ public class Paddle {
 //                refAcc = sp[1];
 //                profile_done = (sp[2] == 1);
 
-                pid_load = PADDLE_FLOWER_PID_COEFFS.kLOAD_POLLEN * Shooter.numPollen + PADDLE_FLOWER_PID_COEFFS.kLOAD_NECTAR * Shooter.numNectar;
+                if (Math.abs(profileTargetAngle - currentAngle) > 50) {
+                    pid_load = PADDLE_FLOWER_PID_COEFFS.kLOAD_POLLEN * Shooter.numPollen + PADDLE_FLOWER_PID_COEFFS.kLOAD_NECTAR * Shooter.numNectar;
+                }
                 velError = refVel - currentVel;
 
                 // integral term (for flower)
@@ -396,7 +399,13 @@ public class Paddle {
                             PADDLE_FLOWER_PID_COEFFS.kV * refVel +
                             PADDLE_FLOWER_PID_COEFFS.kA * refAcc +
                             PADDLE_FLOWER_PID_COEFFS.kP * velError +
+                            PADDLE_FLOWER_PID_COEFFS.kD * derivative +
+                            PADDLE_FLOWER_PID_COEFFS.KP_POS * (refAngle - currentAngle) +
                             pid_load;
+
+                    if (Math.abs(currentAngle - 170) < 3 && Math.abs(currentAngle - profileTargetAngle) < 180) {
+                        pidOutput = -0.3;
+                    }
                 } else {
                     pidOutput = PADDLE_SHOOT_PID_COEFFS.kS * Math.signum(refVel) +
                             PADDLE_SHOOT_PID_COEFFS.kV * refVel +
@@ -485,7 +494,12 @@ public class Paddle {
 
         // Once position profile gets close to correct angle, change to SHOOT state and start profile
         if (Math.abs(error) < ANGLE_TOLERANCE_TO_SHOOT && launch_state == LAUNCH_STATE.POSITION) {
-            targetAngle = targetAngle + (SHOOT_ACCEL_DIST*2 + SHOOT_CRUISE_DIST);
+            if (launchType == LAUNCH_TYPE.FLOWER) {
+                targetAngle = targetAngle + FLOWER_ANGLE;
+            }
+            else {
+                targetAngle = targetAngle + (SHOOT_ACCEL_DIST * 2 + SHOOT_CRUISE_DIST);
+            }
             launch_state = LAUNCH_STATE.SHOOT;
             startShootProfile(currentAngle);
         }
@@ -502,7 +516,7 @@ public class Paddle {
         TelemetryPacket packet = new TelemetryPacket();
 //        packet.put("Current Angle (360)", currentAngle % 360);
 //        packet.put("Current Angle", currentAngle);
-        packet.put("Target Angle", targetAngle);
+        packet.put("Target Angle", profileTargetAngle);
         packet.put("Ref Angle", refAngle);
         packet.put("Ref Vel", refVel);
         packet.put("current vel", currentVel);
