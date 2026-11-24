@@ -234,5 +234,29 @@ public class Shooter {
                     maxVel - maxAccel * deceleration_time,
                     -maxAccel};
         }
+   }
+
+    /**
+     * Motion profile function that uses the distance travelled instead of elapsedTime
+     * @param accelDist distance to accelerate
+     * @param cruiseDist distance to cruise
+     * @param targetVel target velocity
+     * @param v0 initial velocity (make it nonzero to prevent stalling)
+     * @param d distance travelled
+     * @return array of calculated velocity, acceleration, and if done or not
+     */
+    public static double[] distance_profile(double accelDist, double cruiseDist,
+                                            double targetVel, double v0, double d) {
+        d = Math.max(d, 0);
+        // calculate acceleration to reach velocity at accelDist
+        double a = (targetVel * targetVel - v0 * v0) / (2 * accelDist);
+
+        if (d < accelDist) {
+            return new double[] { Math.sqrt(v0 * v0 + 2 * a * d), a, 0 };
+        } else if (d < accelDist + cruiseDist) {
+            return new double[] { targetVel, 0, 0 };
+        } else {
+            return new double[] { 0, 0, 1 }; // done, let it decelerate on its own first
+        }
     }
 }
