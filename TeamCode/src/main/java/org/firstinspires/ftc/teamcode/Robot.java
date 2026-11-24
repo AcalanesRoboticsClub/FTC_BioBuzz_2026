@@ -68,6 +68,9 @@ public class Robot {
      */
     public void toggleFlower() {
         shooter.toggleFlowerMode();
+        if (!shooter.isFlowerMode()) {
+            shooter.setShootProfile();
+        }
     }
 
     /**
@@ -95,17 +98,16 @@ public class Robot {
         // number yellow blinks - pollen
         // number blue blinks - nectar
         // number red blinks - nectar
+        double backgroundColor = 0; // off - shoot
+        if (shooter.isFlowerMode()) {
+            backgroundColor = 0.0; // green - flower
+        }
         double cycleTime = patternTimer.seconds();
-        double timeToBlink = 0.5;
+        double timeToBlink = 0.25;
         double timeForPollen = shooter.numPollen * timeToBlink;
         double timeForNectar = shooter.numNectar * timeToBlink;
-        if (cycleTime < 0.5) {
-            if (shooter.isFlowerMode()) {
-                ledIndicator.setPosition(0.5);
-            }
-            else {
-                ledIndicator.setPosition(0.722);
-            }
+        if (cycleTime < 1) {
+            ledIndicator.setPosition(backgroundColor);
         }
         else if (cycleTime > 1 && cycleTime < 1 + timeForPollen && timeForPollen > 0.1) {
             double timeInStage = cycleTime - 0.5;
@@ -114,7 +116,7 @@ public class Robot {
             if (timeInCurrentStep < timeToBlink / 2.0) {
                 ledIndicator.setPosition(0.333);
             } else {
-                ledIndicator.setPosition(0.0);
+                ledIndicator.setPosition(backgroundColor);
             }
         }
         else if (cycleTime > 1.5 + timeForPollen && cycleTime < 1.5 + timeForPollen + timeForNectar && timeForNectar > 0.1) {
@@ -129,12 +131,12 @@ public class Robot {
                     ledIndicator.setPosition(0.277);
                 }
             } else {
-                ledIndicator.setPosition(0.0);
+                ledIndicator.setPosition(backgroundColor);
             }
         }
-        else if (cycleTime < 2 + timeForPollen + timeForNectar) {
-            ledIndicator.setPosition(0.0);
-        }
+//        else if (cycleTime < 2 + timeForPollen + timeForNectar) {
+//            ledIndicator.setPosition(0.0);
+//        }
         else {
             patternTimer.reset();
         }

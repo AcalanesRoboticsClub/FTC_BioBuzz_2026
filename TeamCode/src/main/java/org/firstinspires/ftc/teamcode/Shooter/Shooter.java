@@ -121,7 +121,7 @@ public class Shooter {
     public void setShootProfile() {
         // fill with if statements
         paddle.setShootVelocity(2000);
-        hood.setPos(0.22);
+        hood.setPos(0.15);
         elevator.goToPos(0);
     }
 
@@ -160,7 +160,7 @@ public class Shooter {
             elevator.toggleBottomPos();
             elevatorDeployed = true;
         }
-        else {
+        else if (!elevatorDeployed) {
             timeToElevatorDown -= dt;
         }
 
