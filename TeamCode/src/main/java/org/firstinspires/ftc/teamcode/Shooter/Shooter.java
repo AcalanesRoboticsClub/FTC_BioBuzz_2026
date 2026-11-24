@@ -20,6 +20,8 @@ public class Shooter {
 
     public enum PADDLE_TYPE {FLOWER, SHOOT};
     public static PADDLE_TYPE paddleTypeToggle = PADDLE_TYPE.SHOOT;
+    public static double numPollen = 0;
+    public static double numNectar = 0;
 
     double timeToElevatorDown = 4;
     boolean elevatorDeployed = false;
@@ -35,6 +37,19 @@ public class Shooter {
      */
     public void deploy() {
         elevator.goToPos(3);
+    }
+
+    public void incPollen() {
+        numPollen += 1;
+    }
+    public void decPollen() {
+        numPollen -= 1;
+    }
+    public void incNectar() {
+        numNectar += 1;
+    }
+    public void decNectar() {
+        numNectar -= 1;
     }
 
     /**
@@ -101,9 +116,10 @@ public class Shooter {
     }
 
     /**
-     * Sets the paddle, hood, and elevator to shooting positions/velocities for one pollen (defualt)
+     * Sets the paddle, hood, and elevator to shooting positions/velocities given numPollen and numNectar
      */
     public void setShootProfile() {
+        // fill with if statements
         paddle.setShootVelocity(2000);
         hood.setPos(0.22);
         elevator.goToPos(0);

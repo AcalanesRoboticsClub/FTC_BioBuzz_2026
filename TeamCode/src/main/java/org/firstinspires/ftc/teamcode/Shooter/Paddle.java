@@ -81,7 +81,6 @@ public class Paddle {
         public static double kG = 0.04345; // (-0.0979-0.011)/2,    0.0436
         public static double KP_POS = 0.003;
         public static double KP_HOLD_POS = 0.008;
-        public static double kLOAD = 0.00;  // extra constant to account for game objects
     }
     @Config
     public static class PADDLE_SHOOT_PID_COEFFS {
@@ -94,18 +93,22 @@ public class Paddle {
         public static double kG = 0.0436;
         public static double KP_POS = 0;
         public static double KP_HOLD_POS = 0;
+        public static double kLOAD_POLLEN = 0.00;  // extra constant to account for game objects
+        public static double kLOAD_NECTAR = 0.00;  // extra constant to account for game objects
     }
     @Config
     public static class PADDLE_FLOWER_PID_COEFFS {
         public static double kI = 0;
         public static double kS = 0.05445;
         public static double kV = 0.0002;
-        public static double kA = 0.002;
-        public static double kP = 0.0007;
+        public static double kA = 0.00008;
+        public static double kP = 0.0004;
         public static double kD = 0;
         public static double kG = 0.0436;
         public static double KP_POS = 0;
         public static double KP_HOLD_POS = 0;
+        public static double kLOAD_POLLEN = 0;
+        public static double kLOAD_NECTAR = 0.00;  // extra constant to account for game objects
     }
     double lastError = 0.0;
     double integral = 0.0;
@@ -341,16 +344,24 @@ public class Paddle {
             // For flower currently does a basic motion profile with flower shoot acceleration
             // might swap to shoot profile version with accel dist later
             if (launchType == LAUNCH_TYPE.FLOWER) {
-                shootDist = currentAngle - profileStartAngle;
-                sp = Shooter.distance_profile(FLOWER_ACCEL_DIST, FLOWER_CRUISE_DIST, FLOWER_VELOCITY, 0.5*FLOWER_VELOCITY, shootDist);
+                double dist = Math.abs(profileTargetAngle - profileStartAngle);
+                sp = Shooter.motion_profile(FLOWER_SHOOT_ACCEL, FLOWER_VELOCITY, dist, shootTimer.seconds());
+                refVel = sp[1];
+                refAcc = sp[2];
+                refAngle = Math.min(profileStartAngle + sp[0], currentAngle + 15);
+                profile_done = currentAngle >= profileTargetAngle - 5
+                        || shootTimer.seconds() > 6;
+
+//                shootDist = currentAngle- profileStartAngle;
+//                sp = Shooter.distance_profile(FLOWER_ACCEL_DIST, FLOWER_CRUISE_DIST, FLOWER_VELOCITY, 0.5*FLOWER_VELOCITY, shootDist);
 
                 // predicted angle, velocity, and acceleration
-                refAngle = currentAngle; // not part of shoot profile
-                refVel = sp[0];
-                refAcc = sp[1];
-                profile_done = (sp[2] == 1);
+//                refAngle = currentAngle; // not part of shoot profile
+//                refVel = sp[0];
+//                refAcc = sp[1];
+//                profile_done = (sp[2] == 1);
 
-                pid_load = PADDLE_PID_COEFFS.kLOAD;
+                pid_load = PADDLE_FLOWER_PID_COEFFS.kLOAD_POLLEN * Shooter.numPollen + PADDLE_FLOWER_PID_COEFFS.kLOAD_NECTAR * Shooter.numNectar;
                 velError = refVel - currentVel;
 
                 // integral term (for flower)
@@ -372,7 +383,7 @@ public class Paddle {
                 velError = refVel - currentVel;
 
                 if (shootDist > SHOOT_ACCEL_DIST && shootDist < SHOOT_ACCEL_DIST + SHOOT_CRUISE_DIST) {
-                    pid_load = PADDLE_PID_COEFFS.kLOAD;
+                    pid_load = PADDLE_SHOOT_PID_COEFFS.kLOAD_POLLEN * Shooter.numPollen + PADDLE_SHOOT_PID_COEFFS.kLOAD_NECTAR * Shooter.numNectar;
                 }
             }
 
@@ -385,10 +396,7 @@ public class Paddle {
                             PADDLE_FLOWER_PID_COEFFS.kV * refVel +
                             PADDLE_FLOWER_PID_COEFFS.kA * refAcc +
                             PADDLE_FLOWER_PID_COEFFS.kP * velError +
-                            PADDLE_FLOWER_PID_COEFFS.kD * derivative +
-                            PADDLE_FLOWER_PID_COEFFS.KP_POS * (refAngle - currentAngle) +
-                            pid_load +
-                            pid_I;
+                            pid_load;
                 } else {
                     pidOutput = PADDLE_SHOOT_PID_COEFFS.kS * Math.signum(refVel) +
                             PADDLE_SHOOT_PID_COEFFS.kV * refVel +

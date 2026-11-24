@@ -149,6 +149,20 @@ public class TeleOP extends LinearOpMode {
                 robot.shooter.changeHoodPos(Shooter.HOOD_STATE.DEC);
             }
 
+            // Count number of pollen and nectar (control scheme later)
+//            if (gamepad2.dpadUpWasPressed()) {
+//                robot.shooter.incPollen();
+//            }
+//            if (gamepad2.dpadDownWasPressed()) {
+//                robot.shooter.decPollen();
+//            }
+//            if (gamepad2.dpadRightWasPressed()) {
+//                robot.shooter.incNectar();
+//            }
+//            if (gamepad2.dpadLeftWasPressed()) {
+//                robot.shooter.decNectar();
+//            }
+
             if (gamepad2.right_trigger > 0.5) {
                 robot.shooter.elevator.runForward(gamepad2.right_trigger);
             }
