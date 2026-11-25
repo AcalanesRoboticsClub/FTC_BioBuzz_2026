@@ -39,7 +39,7 @@ public class autoTesting extends LinearOpMode {
     // Autonomous routine
     public Command autoRoutine() {
         return sequential(
-                instant(() -> storeAllianceColor()), // Store alliance
+                instant(this::storeAllianceColor), // Store alliance
 
                 // Deploy Robot at starting pose
                 instant(() -> robot.deploy()),
@@ -117,5 +117,5 @@ public class autoTesting extends LinearOpMode {
         return Paths.curve(parkStart, parkControl1, park).linear(parkStart, park);
     }
 
-    public void storeAllianceColor() {}; // will be overridden via inhertiance for diff colors
+    public void storeAllianceColor() {}; // will be overridden via inheritance for diff colors
 }
