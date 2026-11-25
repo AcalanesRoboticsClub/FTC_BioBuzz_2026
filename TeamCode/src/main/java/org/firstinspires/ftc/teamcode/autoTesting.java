@@ -14,6 +14,9 @@ import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
+import org.firstinspires.ftc.teamcode.Shooter.Paddle;
+import org.firstinspires.ftc.teamcode.Shooter.Shooter;
+
 public class autoTesting extends LinearOpMode {
 
     private Follower follower;
@@ -26,14 +29,14 @@ public class autoTesting extends LinearOpMode {
     private final Pose moveToGardenControl1 = poseFactory.of(82.916, 104.1176, 0);
     private final Pose moveToGardenControl2 = poseFactory.of(113.9938, 99.5902, 0);
     private final Pose pickupFromGardenStart = poseFactory.of(128.0973, 112.8543, 90);
-    private final Pose pickupFromGarden = poseFactory.of(132.2301, 130.9118, 90);
-    private final Pose moveToFarHive = poseFactory.of(82.9964, 15.5145, 90.3352);
+    private final Pose pickupFromGarden = poseFactory.of(132.2973, 130.194, 90);
+    private final Pose moveToFarHive = poseFactory.of(82.9964, 15.5145, 89.9694);
     private final Pose moveToFarHiveControl1 = poseFactory.of(130.1517, 106.7118, 0);
     private final Pose moveToFarHiveControl2 = poseFactory.of(120.9349, 79.2577, 0);
     private final Pose moveToFarHiveControl3 = poseFactory.of(128.5202, 31.876, 0);
-    private final Pose moveToFarHiveControl4 = poseFactory.of(82.9564, 22.3397, 0);
+    private final Pose moveToFarHiveControl4 = poseFactory.of(83, 22.3397, 0);
     private final Pose parkStart = poseFactory.of(82.9964, 15.5145, 90);
-    private final Pose park = poseFactory.of(131.3165, 46.3527, 180);
+    private final Pose park = poseFactory.of(127.7043, 46.225, 180);
     private final Pose parkControl1 = poseFactory.of(111.1303, 46.4185, 0);
 
     // Autonomous routine
@@ -43,32 +46,43 @@ public class autoTesting extends LinearOpMode {
 
                 // Deploy Robot at starting pose
                 instant(() -> robot.deploy()),
-                waitMs(500), // allow time for elevator to raise
-                instant(() -> robot.shooter.elevator.toggleBottomPos()),
-                waitMs(1500), // ensure robot deployment
+                waitMs(500), // ensure robot deployment
 
                 // Launch 4 preloaded pollen
-                instant(() -> robot.shooter.calculateShoot(4, 0)),
-                instant(() -> robot.shooter.launcher.toggleShoot()),
-                waitMs(3000), // wait during launch
+                instant(() -> robot.shooter.setShootProfile(3, 0)),
+                waitMs(800), // allow elevator to rise
+                instant(() -> robot.shooter.paddle.toggleShoot()),
+                waitMs(2500), // wait during launch
 
                 // Move to garden and intake the 4 pollen there
                 follow(follower, moveToGarden()), // Lines up in front of garden
                 instant(() -> robot.intake.toggle()), // Enable intake (matches TeleOP toggle if intake starts in rest)
                 follow(follower, pickupFromGarden()), // Drives into pollen
-                waitMs(2500), // Wait to ensure pollen are picked up
+                waitMs(1000), // Wait to ensure pollen are picked up
 
                 // Go to other hive and shoot, hopefully after a tip
                 follow(follower, moveToFarHive()),
                 waitMs(500),
-                // Launch 4 pollen
-                instant(() -> robot.shooter.calculateShoot(4, 0)),
-                instant(() -> robot.shooter.launcher.toggleShoot()),
-                waitMs(3000), // wait during launch
-
                 instant(() -> robot.intake.rest()), // Stop intake
 
-                follow(follower, park())
+                // Launch 4 pollen
+                instant(() -> robot.shooter.setShootProfile(3, 0)),
+                waitMs(800), // allow elevator to rise
+                instant(() -> robot.shooter.paddle.toggleShoot()),
+                waitMs(2500), // wait during launch
+
+                // Park and stow robot as needed
+                follow(follower, park()),
+                waitMs(100), // Let robot settle
+
+                instant(() -> robot.shooter.paddle.stowEndAuto()), // Move paddle to known position for teleop
+
+                // Store robot state for teleop
+                instant(() -> HandoffPoseStorage.robotPose = follower.pose()),
+                instant(() -> Shooter.numNectar = 0),
+                instant(() -> Shooter.numPollen = 0),
+
+                waitMs(3000) // Allow movement to settle
         );
     }
 

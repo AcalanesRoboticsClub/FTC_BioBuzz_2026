@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
+import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -22,6 +23,8 @@ public class TeleOP extends LinearOpMode {
 
     private Follower follower;
 
+    private Pose teleopLastPose;
+
     private double calcLargestChange(double a, double b) {
         // Return the value of the greatest absolute value of either a or b. Used for dual controller input
         if(Math.abs(b) > Math.abs(a)) {
@@ -31,8 +34,15 @@ public class TeleOP extends LinearOpMode {
         }
     }
 
-    public double expo(double input, double exponent) { // for scaled non linear throttle curve driving
+    public double expo(double input, double exponent) { // for scaled non-linear throttle curve driving
         return Math.signum(input) * Math.pow(Math.abs(input), exponent);
+    }
+
+    private double deadbandExclude(double input, double deadband) {
+        if(Math.abs(input) > deadband) {
+            return input;
+        }
+        return 0;
     }
 
     @Override
@@ -52,26 +62,57 @@ public class TeleOP extends LinearOpMode {
 
         waitForStart();
 
+        Pose start = HandoffPoseStorage.robotPose;
+        teleopLastPose = (start != null) ? start : new Pose(0, 0, 0); // If no pose is stored, use 0,0,0
+        follower.setPose(teleopLastPose);
+
         robot.deploy();
 
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
-            // Take whichever value is the most drastic change to use from either controller
-            double y = -calcLargestChange(gamepad1.left_stick_y, gamepad2.left_stick_y); // input from controller is flipped
-            double x = -calcLargestChange(gamepad1.left_stick_x, gamepad2.left_stick_x);
-            double rx = -calcLargestChange(gamepad1.right_stick_x, gamepad2.right_stick_x);
+            // Take whichever value is the most drastic change to use from either controller,
+            // ignore if very close to zero, then scale using a throttle curve
+            double y = expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_y, gamepad2.left_stick_y), 0.03), 1.5);
+            double x = expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_x, gamepad2.left_stick_x), 0.03), 1.5);
+            double rx = expo(deadbandExclude(calcLargestChange(gamepad1.right_stick_x, gamepad2.right_stick_x), 0.03), 1.5);
 
-            DrivePowers powers = ManualDrive.fieldCentric(y, x, rx, follower.pose().heading() - teleHeadingOffset);
+            telemetry.addData("y: ", y);
+            telemetry.addData("x:  ", x);
+            telemetry.addData("rx: ", rx);
 
-            ManualDrive.driveOrHold(follower, powers);
-            follower.update();
+            // Flip input if driver is on the other side of the field
+            if(HandoffPoseStorage.alliance_color == HandoffPoseStorage.ALLIANCE.BLUE) {
+                y *= -1;
+                x *= -1;
+                rx *= -1;
+            }
 
-            // This button choice was made so that it is hard to hit on accident,
-            // it can be freely changed based on preference.
-            // The equivalent button is start on Xbox-style controllers.
-            if (gamepad1.optionsWasPressed()) {
+            // re-implementation of ManualDrive.driveOrHold(follower, powers);
+            boolean hasInput = Math.abs(y) > 0 || Math.abs(x) > 0 || Math.abs(rx) > 0;
+            if (hasInput) {
+                DrivePowers powers = ManualDrive.fieldCentric(y, x, rx, follower.pose().heading() - teleHeadingOffset);
+                follower.manual(powers);
+
+                telemetry.addData("state: ", "driving");
+            } else {
+                follower.hold(follower.pose());
+                telemetry.addData("state: ", "holding");
+            }
+            follower.update();  // keep updating so hold targets where you stopped);
+
+            // START button on F310 controllers
+            // Press to reset teleop heading, and hold X or Y to set alliance colors
+            // X and Y buttons chose to not conflict with gamepad 1/2 config
+            if (gamepad1.optionsWasReleased() || gamepad2.optionsWasReleased()) {
                 teleHeadingOffset = follower.pose().heading();   // whichever way the robot faces now counts as "forward"
+
+                if(gamepad1.x || gamepad2.x) { // If blue X button is also being held
+                    HandoffPoseStorage.alliance_color = HandoffPoseStorage.ALLIANCE.BLUE;
+                }
+                else if(gamepad1.y || gamepad2.y) { // If Y button is also being held
+                    HandoffPoseStorage.alliance_color = HandoffPoseStorage.ALLIANCE.RED;
+                }
             }
 
 //            telemetry.addData("vals", "%4.2f, %4.2f, %4.2f", y, x, rx);
@@ -110,7 +151,7 @@ public class TeleOP extends LinearOpMode {
 //            if (gamepad1.x || gamepad2.x) {
 //                robot.intake.spit();
 //            }
-            if (gamepad1.xWasPressed() || gamepad1.xWasPressed()) {
+            if (gamepad1.xWasPressed() || gamepad2.xWasPressed()) {
                 robot.shooter.paddle.toggleShoot();
             }
             if (gamepad1.back || gamepad2.back) {
@@ -189,6 +230,7 @@ public class TeleOP extends LinearOpMode {
 
             telemetry.addData("Flower state", robot.shooter.isFlowerMode());
             telemetry.addData("Hood pos", robot.shooter.hood.getPos());
+            telemetry.addData("Alliance", HandoffPoseStorage.alliance_color);
             telemetry.update();
 
             TelemetryPacket packet = new TelemetryPacket();

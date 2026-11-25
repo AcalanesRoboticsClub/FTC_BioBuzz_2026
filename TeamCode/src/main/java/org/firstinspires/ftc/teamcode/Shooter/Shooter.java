@@ -134,6 +134,12 @@ public class Shooter {
         paddle.setShootVelocity(2000);
         hood.setPos(0.22);
         elevator.goToPos(0);
+
+        if(numPollen == 3) {
+            paddle.setShootVelocity(2300);
+            hood.setPos(0.1);
+            elevator.toggleTopPos();
+        }
     }
 
     /**

@@ -26,6 +26,7 @@ public class Paddle {
     // Angle constants
     final double REST_ANGLE = 270.0; // help guide objects into sleeve
     final double REST_UP_ANGLE = 300.0; // prevent objects from falling out
+    final double REST_END_AUTO_ANGLE = 180; // rest in known pos at end of autonomous
     final double SHOOT_POS_ANGLE = 85.0;
     final double FLOWER_POS_ANGLE = 100.0;
     final double SHOOT_ANGLE = 360 * 2.75;
@@ -44,6 +45,7 @@ public class Paddle {
     public enum LAUNCH_STATE {
         REST, // normal rest position
         REST_ELEVATOR_UP, // rest position when elevator is up
+        REST_END_AUTO, // rest position for end of autonomous
         POSITION, // move backwards a position to give shoot profile more time to get up to speed
         SHOOT, // shoot (either flower or regular shoot)
         SPIT}; // reverse direction to spit out game objects
@@ -322,6 +324,12 @@ public class Paddle {
             elevatorUpReadyForProfile = true;
         }
 
+        // Move to a known position at the end of autonomous
+        if(launch_state == LAUNCH_STATE.REST_END_AUTO) {
+            targetAngle = currentAngle + (REST_END_AUTO_ANGLE - (currentAngle % 360));
+            startProfile(currentAngle);
+        }
+
         // Calculate error
         double error = targetAngle - currentAngle;
         pidOutput = 0.0;
@@ -550,6 +558,13 @@ public class Paddle {
 
     public void rest() {
         paddleMotor.setPower(0);
+    }
+
+    /**
+     * Move paddle to rest position at the end of autonomous
+      */
+    public void stowEndAuto() {
+        launch_state = LAUNCH_STATE.REST_END_AUTO;
     }
 
     /**
