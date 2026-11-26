@@ -19,11 +19,13 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 public class TeleOP extends LinearOpMode {
     Robot robot;
 
-    IMU imu;
+    IMU imu; // TODO: Can remove?
 
     private Follower follower;
 
-    private Pose teleopLastPose;
+    private enum DRIVE {JOYSTICK, HOLD, REST, AUTO_PATH};
+
+    DRIVE driveMode;
 
     private double calcLargestChange(double a, double b) {
         // Return the value of the greatest absolute value of either a or b. Used for dual controller input
@@ -49,11 +51,12 @@ public class TeleOP extends LinearOpMode {
     public void runOpMode() throws InterruptedException {
         robot = new Robot(hardwareMap);
         follower = PedroConstants.create(hardwareMap);
+
         double teleHeadingOffset = 0;
 
         // Retrieve the IMU from the hardware map
         imu = hardwareMap.get(IMU.class, "imu");
-        // Adjust the orientation parameters to match your robot <------------------------------------------------------- IMPORTANT
+        // Adjust the orientation parameters to match your robot
         IMU.Parameters parameters = new IMU.Parameters(new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.LEFT,
                 RevHubOrientationOnRobot.UsbFacingDirection.UP));
@@ -62,44 +65,84 @@ public class TeleOP extends LinearOpMode {
 
         waitForStart();
 
-        Pose start = HandoffPoseStorage.robotPose;
-        teleopLastPose = (start != null) ? start : new Pose(0, 0, 0); // If no pose is stored, use 0,0,0
-        follower.setPose(teleopLastPose);
+        driveMode = DRIVE.REST; // Default to resting with no motor power
+        double timeLastJoystick = getRuntime(); // Used for timeout coasting before holding pose
+
+        // Set desired pose to zero if no pose was stored in auto
+        Pose desiredPose = (HandoffPoseStorage.robotPose != null) ? HandoffPoseStorage.robotPose : new Pose(0, 0, 0);
+        follower.setPose(desiredPose);
+
+        // Set alliance color to blue if it was not set during auto
+        HandoffPoseStorage.alliance_color = (HandoffPoseStorage.alliance_color != null) ? HandoffPoseStorage.alliance_color : HandoffPoseStorage.ALLIANCE.BLUE;
 
         robot.deploy();
 
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
-            // Take whichever value is the most drastic change to use from either controller,
-            // ignore if very close to zero, then scale using a throttle curve
-            double y = expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_y, gamepad2.left_stick_y), 0.03), 1.5);
-            double x = expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_x, gamepad2.left_stick_x), 0.03), 1.5);
-            double rx = expo(deadbandExclude(calcLargestChange(gamepad1.right_stick_x, gamepad2.right_stick_x), 0.03), 1.5);
+            // ---------------------------- Chassis Driving Logic --------------------------------
+            final double JOYSTICK_DEADBAND = 0.03;
+            final double COAST_SECONDS = 1.00;
+            final double DRIVE_CURVE_EXP = 1.5;
 
-            telemetry.addData("y: ", y);
-            telemetry.addData("x:  ", x);
-            telemetry.addData("rx: ", rx);
+            // If any joystick has moved
+            boolean joystickInput = Math.abs(gamepad1.left_stick_y)  > JOYSTICK_DEADBAND
+                                 || Math.abs(gamepad2.left_stick_y)  > JOYSTICK_DEADBAND
+                                 || Math.abs(gamepad1.left_stick_x)  > JOYSTICK_DEADBAND
+                                 || Math.abs(gamepad2.left_stick_x)  > JOYSTICK_DEADBAND
+                                 || Math.abs(gamepad1.right_stick_x) > JOYSTICK_DEADBAND
+                                 || Math.abs(gamepad2.right_stick_x) > JOYSTICK_DEADBAND;
 
-            // Flip input if driver is on the other side of the field
-            if(HandoffPoseStorage.alliance_color == HandoffPoseStorage.ALLIANCE.BLUE) {
-                y *= -1;
-                x *= -1;
-                rx *= -1;
+            // Determine the driving mode
+            if(joystickInput) {
+                driveMode = DRIVE.JOYSTICK;
+                timeLastJoystick = getRuntime();
+            }
+            else {
+                if (timeLastJoystick + COAST_SECONDS > getRuntime()) { // Allow time after input for robot to settle
+                    driveMode = DRIVE.REST;
+                    desiredPose = follower.pose(); // ensure robot doesn't lurch after exiting rest
+                }
+                else { // Wait until coasting delay after joystick has elapsed
+                    if(driveMode == DRIVE.JOYSTICK) { // if this is the first time not being in joystick drive mode, otherwise it holds last saved pos
+                        desiredPose = follower.pose(); // save current pose as the pose to hold
+                    }
+
+                    driveMode = DRIVE.HOLD;
+                }
             }
 
-            // re-implementation of ManualDrive.driveOrHold(follower, powers);
-            boolean hasInput = Math.abs(y) > 0 || Math.abs(x) > 0 || Math.abs(rx) > 0;
-            if (hasInput) {
+
+            // States for Chassis driving (drive mode)
+            if (driveMode == DRIVE.REST) { // No power to the motors
+                DrivePowers powers = DrivePowers.zero();
+                follower.manual(powers);
+            }
+            else if (driveMode == DRIVE.HOLD) { // Hold the last known intentional pose
+                follower.hold(desiredPose);
+                telemetry.addData("Holding Pose: ", desiredPose);
+            }
+            else if (driveMode == DRIVE.JOYSTICK) { // Allow joysticks to move directly
+                // Take whichever value is the most drastic change to use from either controller, ignore if a specific axis is very close to zero, then scale using a throttle curve
+                double y =  expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_y, gamepad2.left_stick_y),   JOYSTICK_DEADBAND), DRIVE_CURVE_EXP);
+                double x =  expo(deadbandExclude(calcLargestChange(gamepad1.left_stick_x, gamepad2.left_stick_x),   JOYSTICK_DEADBAND), DRIVE_CURVE_EXP);
+                double rx = expo(deadbandExclude(calcLargestChange(gamepad1.right_stick_x, gamepad2.right_stick_x), JOYSTICK_DEADBAND), DRIVE_CURVE_EXP);
+
+                // Flip input if driver is on the other side of the field. Pedro coordinates assume red alliance
+                if(HandoffPoseStorage.alliance_color == HandoffPoseStorage.ALLIANCE.BLUE) {
+                    y *= -1;
+                    x *= -1;
+                    rx *= -1;
+                }
+
                 DrivePowers powers = ManualDrive.fieldCentric(y, x, rx, follower.pose().heading() - teleHeadingOffset);
+
                 follower.manual(powers);
 
-                telemetry.addData("state: ", "driving");
-            } else {
-                follower.hold(follower.pose());
-                telemetry.addData("state: ", "holding");
+                telemetry.addData("Drive powers: ", powers);
             }
-            follower.update();  // keep updating so hold targets where you stopped);
+            // ---------------------------- End Chassis Driving Logic --------------------------------
+
 
             // START button on F310 controllers
             // Press to reset teleop heading, and hold X or Y to set alliance colors
@@ -114,15 +157,6 @@ public class TeleOP extends LinearOpMode {
                     HandoffPoseStorage.alliance_color = HandoffPoseStorage.ALLIANCE.RED;
                 }
             }
-
-//            telemetry.addData("vals", "%4.2f, %4.2f, %4.2f", y, x, rx);
-//            telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
-//            telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
-
-//            frontLeftMotor.setPower(frontLeftPower);
-//            backLeftMotor.setPower(backLeftPower);
-//            frontRightMotor.setPower(frontRightPower);
-//            backRightMotor.setPower(backRightPower);
 
             if (gamepad1.bWasPressed() || gamepad2.bWasPressed()) {
                 robot.shooter.paddle.toggleShoot();
@@ -227,10 +261,12 @@ public class TeleOP extends LinearOpMode {
             }
 
             robot.update();
+            follower.update();
 
-            telemetry.addData("Flower state", robot.shooter.isFlowerMode());
-            telemetry.addData("Hood pos", robot.shooter.hood.getPos());
-            telemetry.addData("Alliance", HandoffPoseStorage.alliance_color);
+            telemetry.addData("Flower state: ", robot.shooter.isFlowerMode());
+            telemetry.addData("Hood pos: ", robot.shooter.hood.getPos());
+            telemetry.addData("Alliance: ", HandoffPoseStorage.alliance_color);
+            telemetry.addData("Drive mode: ", driveMode);
             telemetry.update();
 
             TelemetryPacket packet = new TelemetryPacket();
